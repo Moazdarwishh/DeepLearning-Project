@@ -3,6 +3,8 @@
 Examples::
 
     python -m src.cli info     --config configs/cls_resnet50.yaml
+    python -m src.cli data     --action inspect --config configs/base.yaml
+    python -m src.cli data     --action split   --config configs/base.yaml
     python -m src.cli train    --task classification --config configs/cls_resnet50.yaml
     python -m src.cli train    --task classification --config configs/cls_scratch.yaml --set train.lr=3e-4
     python -m src.cli evaluate --task classification --checkpoint outputs/cls_resnet50/best.pt
@@ -55,6 +57,48 @@ def cmd_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_data(args: argparse.Namespace) -> int:
+    """Dataset utilities: inspect the HF repos, create the train/val split."""
+    import json
+    from pathlib import Path
+
+    from src.data.datasets import get_class_names, get_labels, load_cub, summarize
+
+    cfg = load_config(args.config, args.set)
+    out_dir = Path(cfg.experiment.output_dir) / "eda"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.action == "inspect":
+        for split_name, repo in (("train", cfg.data.train_dataset), ("test", cfg.data.test_dataset)):
+            print(f"\n=== {split_name}: {repo} ===")
+            ds = load_cub(repo, cfg.data.cache_dir)
+            summary = summarize(ds)
+            summary["class_names_first_5"] = get_class_names(ds)[:5]
+            print(json.dumps(summary, indent=2))
+            path = out_dir / f"dataset_summary_{split_name}.json"
+            path.write_text(json.dumps(summary, indent=2))
+            print(f"saved -> {path}")
+        return 0
+
+    if args.action == "split":
+        from src.data.splits import SPLIT_FILE, make_stratified_split, save_split
+
+        target = Path(cfg.data.splits_dir) / SPLIT_FILE
+        if target.exists() and not args.force:
+            print(f"{target} already exists (use --force to overwrite).", file=sys.stderr)
+            return 1
+        ds = load_cub(cfg.data.train_dataset, cfg.data.cache_dir)
+        labels = get_labels(ds)
+        split = make_stratified_split(labels, cfg.data.val_fraction, cfg.experiment.seed,
+                                      source_dataset=cfg.data.train_dataset)
+        path = save_split(split, cfg.data.splits_dir)
+        print(json.dumps(split.summary(labels), indent=2))
+        print(f"saved -> {path}")
+        return 0
+
+    raise ValueError(args.action)
+
+
 def dispatch(args: argparse.Namespace) -> int:
     handler = HANDLERS.get((args.command, args.task))
     if handler is None:
@@ -82,6 +126,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("info", help="Show environment, device and resolved config")
     _add_common(p, needs_task=False)
     p.set_defaults(func=cmd_info)
+
+    p = sub.add_parser("data", help="Dataset utilities (inspect, split)")
+    _add_common(p, needs_task=False)
+    p.add_argument("--action", choices=("inspect", "split"), required=True)
+    p.add_argument("--force", action="store_true", help="Overwrite an existing split")
+    p.set_defaults(func=cmd_data)
 
     p = sub.add_parser("train", help="Train a model for a task")
     _add_common(p)
