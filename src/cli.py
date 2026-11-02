@@ -5,6 +5,7 @@ Examples::
     python -m src.cli info     --config configs/cls_resnet50.yaml
     python -m src.cli data     --action inspect --config configs/base.yaml
     python -m src.cli data     --action split   --config configs/base.yaml
+    python -m src.cli data     --action eda     --config configs/base.yaml
     python -m src.cli train    --task classification --config configs/cls_resnet50.yaml
     python -m src.cli train    --task classification --config configs/cls_scratch.yaml --set train.lr=3e-4
     python -m src.cli evaluate --task classification --checkpoint outputs/cls_resnet50/best.pt
@@ -96,6 +97,18 @@ def cmd_data(args: argparse.Namespace) -> int:
         print(f"saved -> {path}")
         return 0
 
+    if args.action == "eda":
+        from src.data.eda import run_eda
+
+        summary = run_eda(cfg)
+        short = {k: summary[k] for k in ("rows", "images_per_class", "color_modes", "quality_flags",
+                                         "near_duplicates", "train_channel_mean_std", "cleaning")}
+        short["corrupt_images"] = len(summary["corrupt_images"])
+        print(json.dumps(short, indent=2, default=str))
+        print(f"\nfull summary -> {out_dir / 'eda_summary.json'}")
+        print(f"figures      -> {out_dir / 'figures'} ({len(summary['figures'])} files)")
+        return 0
+
     raise ValueError(args.action)
 
 
@@ -127,9 +140,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p, needs_task=False)
     p.set_defaults(func=cmd_info)
 
-    p = sub.add_parser("data", help="Dataset utilities (inspect, split)")
+    p = sub.add_parser("data", help="Dataset utilities (inspect, split, eda)")
     _add_common(p, needs_task=False)
-    p.add_argument("--action", choices=("inspect", "split"), required=True)
+    p.add_argument("--action", choices=("inspect", "split", "eda"), required=True)
     p.add_argument("--force", action="store_true", help="Overwrite an existing split")
     p.set_defaults(func=cmd_data)
 
