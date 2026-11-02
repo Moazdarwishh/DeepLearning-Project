@@ -1,0 +1,27 @@
+# Transfer learning: ImageNet-pretrained ResNet-50, full fine-tuning (Milestone 1, Task 1.2)
+_base_: base.yaml
+experiment:
+  name: cls-resnet50-ft
+  task: classification
+  tags: [classification, transfer, resnet50]
+data:
+  normalization: imagenet
+  batch_size: 32
+model:
+  name: resnet50
+  pretrained: true
+  dropout: 0.3
+  freeze_backbone: false     # set true for the linear-probe experiment
+train:
+  epochs: 30
+  optimizer: adamw
+  lr: 1.0e-3                 # head
+  backbone_lr: 1.0e-4        # pretrained layers
+  weight_decay: 1.0e-4
+  scheduler: cosine
+  warmup_epochs: 1
+  label_smoothing: 0.1
+  early_stopping_patience: 8
+tracking:
+  backend: mlflow
+  project: pixels-to-language

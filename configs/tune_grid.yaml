@@ -1,0 +1,21 @@
+# Grid search (Milestone 1 tuning). Same budget as tune_random.yaml: 12 trials.
+_base_: base.yaml
+experiment:
+  name: tune-grid
+  task: classification
+  tags: [tuning, grid]
+model:
+  name: resnet50
+  pretrained: true
+train:
+  epochs: 8
+tuning:
+  method: grid
+  epochs_per_trial: 8
+  search_space:
+    train.lr: [1.0e-4, 3.0e-4, 1.0e-3]
+    train.weight_decay: [1.0e-4, 1.0e-3]
+    model.dropout: [0.2, 0.5]
+tracking:
+  backend: mlflow
+  project: pixels-to-language-tuning

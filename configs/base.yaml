@@ -1,0 +1,16 @@
+# Shared defaults. Each experiment config only lists what it changes.
+experiment:
+  seed: 42
+  output_dir: outputs
+data:
+  train_dataset: Multimodal-Fatima/CUB_train
+  test_dataset: Multimodal-Fatima/CUB_test
+  splits_dir: data/splits
+  val_fraction: 0.15
+  image_size: 224
+  resize_size: 256
+  batch_size: 32
+  num_workers: 2
+tracking:
+  backend: mlflow          # mlflow | wandb | none
+  project: pixels-to-language

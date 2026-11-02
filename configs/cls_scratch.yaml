@@ -1,0 +1,29 @@
+# Baseline: CNN trained from scratch on CUB-200 (Milestone 1, Task 1.2)
+_base_: base.yaml
+experiment:
+  name: cls-scratch
+  task: classification
+  tags: [classification, scratch, baseline]
+data:
+  normalization: dataset    # mean/std computed on our train split during EDA
+  batch_size: 64
+model:
+  name: scratch_cnn
+  pretrained: false
+  dropout: 0.4
+  params:
+    widths: [64, 128, 256, 512]
+    blocks_per_stage: 2
+    residual: true
+train:
+  epochs: 100
+  optimizer: adamw
+  lr: 1.0e-3
+  weight_decay: 5.0e-4
+  scheduler: cosine
+  warmup_epochs: 3
+  label_smoothing: 0.1
+  early_stopping_patience: 15
+tracking:
+  backend: mlflow
+  project: pixels-to-language
