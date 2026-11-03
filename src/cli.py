@@ -6,6 +6,8 @@ Examples::
     python -m src.cli data     --action inspect --config configs/base.yaml
     python -m src.cli data     --action split   --config configs/base.yaml
     python -m src.cli data     --action eda     --config configs/base.yaml
+    python -m src.cli data     --action augment-preview --config configs/cls_resnet50.yaml
+    python -m src.cli data     --action loader-check    --config configs/cls_resnet50.yaml
     python -m src.cli train    --task classification --config configs/cls_resnet50.yaml
     python -m src.cli train    --task classification --config configs/cls_scratch.yaml --set train.lr=3e-4
     python -m src.cli evaluate --task classification --checkpoint outputs/cls_resnet50/best.pt
@@ -109,6 +111,50 @@ def cmd_data(args: argparse.Namespace) -> int:
         print(f"figures      -> {out_dir / 'figures'} ({len(summary['figures'])} files)")
         return 0
 
+    if args.action == "augment-preview":
+        import random
+
+        from src.data.classification import build_classification_data
+        from src.data.transforms import (build_eval_transform, build_train_transform,
+                                         normalization_stats)
+        from src.visualization.augmentation_plots import augmentation_grid
+
+        data = build_classification_data(cfg)
+        rng = random.Random(cfg.experiment.seed)
+        picks = rng.sample(range(len(data.train)), 4)
+        samples = []
+        for i in picks:
+            row = data.train.data[data.train.indices[i]]
+            samples.append((row["image"].convert("RGB"), data.class_names[int(row["label"])]))
+        mean, std = normalization_stats(cfg.data)
+        path = augmentation_grid(samples, build_train_transform(cfg.data), build_eval_transform(cfg.data),
+                                 mean, std, out_dir / "figures" / "11_augmentations.png", seed=cfg.experiment.seed)
+        print(f"saved -> {path}")
+        return 0
+
+    if args.action == "loader-check":
+        import time
+
+        from src.data.classification import build_classification_data, build_dataloaders
+
+        data = build_classification_data(cfg)
+        loaders = build_dataloaders(cfg, data)
+        print(f"dataset sizes  : {data.sizes()}")
+        print(f"excluded       : {data.excluded}")
+        print(f"normalization  : {cfg.data.normalization}, augment={cfg.data.augment}")
+        for split in ("train", "val"):
+            start = time.perf_counter()
+            for n, (x, y) in enumerate(loaders[split], start=1):
+                if n == 1:
+                    print(f"{split:<5} batch    : x={tuple(x.shape)} {x.dtype}, y={tuple(y.shape)}, "
+                          f"labels {int(y.min())}-{int(y.max())}, "
+                          f"pixel mean={x.mean():.3f} std={x.std():.3f}")
+                if n == 10:
+                    break
+            print(f"{split:<5} speed    : {(time.perf_counter() - start) / n:.3f} s/batch "
+                  f"({cfg.data.batch_size} images, {cfg.data.num_workers} workers)")
+        return 0
+
     raise ValueError(args.action)
 
 
@@ -140,9 +186,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p, needs_task=False)
     p.set_defaults(func=cmd_info)
 
-    p = sub.add_parser("data", help="Dataset utilities (inspect, split, eda)")
+    p = sub.add_parser("data", help="Dataset utilities (inspect, split, eda, augment-preview, loader-check)")
     _add_common(p, needs_task=False)
-    p.add_argument("--action", choices=("inspect", "split", "eda"), required=True)
+    p.add_argument("--action", choices=("inspect", "split", "eda", "augment-preview", "loader-check"), required=True)
     p.add_argument("--force", action="store_true", help="Overwrite an existing split")
     p.set_defaults(func=cmd_data)
 

@@ -54,6 +54,14 @@ docs/             project plan and notes
 ## CLI
 
 ```bash
+# data
+python -m src.cli data --action inspect         --config configs/base.yaml
+python -m src.cli data --action split           --config configs/base.yaml
+python -m src.cli data --action eda             --config configs/base.yaml
+python -m src.cli data --action augment-preview --config configs/cls_resnet50.yaml
+python -m src.cli data --action loader-check    --config configs/cls_resnet50.yaml
+
+# models
 python -m src.cli info     --config configs/cls_resnet50.yaml
 python -m src.cli train    --task classification --config configs/cls_scratch.yaml
 python -m src.cli train    --task classification --config configs/cls_resnet50.yaml --set train.lr=3e-4 model.freeze_backbone=true
@@ -76,7 +84,7 @@ Set `tracking.backend` in a config to `mlflow`, `wandb` or `none`.
 ## Status
 
 - [x] Project setup: structure, config system, tracking wrapper, encoder interface, CLI skeleton
-- [ ] M1 — EDA & data preparation
+- [x] M1 — EDA & data preparation (split, EDA figures, caption cleaning, augmentation)
 - [ ] M1 — Scratch CNN baseline
 - [ ] M1 — Transfer learning
 - [ ] M1 — Grid vs random search

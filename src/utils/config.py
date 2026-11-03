@@ -33,8 +33,21 @@ class DataConfig:
     image_size: int = 224
     resize_size: int = 256                  # eval: resize -> center crop
     normalization: str = "imagenet"         # imagenet | dataset
+    # CUB train-split statistics measured in the EDA (5,094 train images only)
+    dataset_mean: list[float] = field(default_factory=lambda: [0.4848, 0.4994, 0.4327])
+    dataset_std: list[float] = field(default_factory=lambda: [0.2323, 0.2277, 0.2662])
+    exclusions_file: str = "data/splits/exclusions.json"   # images dropped after the EDA
     batch_size: int = 32
     num_workers: int = 2
+
+    # --- augmentation (train only; see src/data/transforms.py for the reasoning)
+    augment: bool = True
+    crop_scale_min: float = 0.5             # RandomResizedCrop keeps 50-100 % of the image
+    hflip_prob: float = 0.5
+    rotation_degrees: float = 10.0
+    brightness: float = 0.3
+    contrast: float = 0.3
+    saturation: float = 0.2                 # mild; hue is never changed
 
 
 @dataclass
