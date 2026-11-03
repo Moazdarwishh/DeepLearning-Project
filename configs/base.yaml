@@ -14,3 +14,5 @@ data:
 tracking:
   backend: mlflow          # mlflow | wandb | none
   project: pixels-to-language
+train:
+  save_every_epoch: true   # keep last.pt so an interrupted run can --resume

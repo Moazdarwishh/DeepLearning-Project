@@ -25,6 +25,7 @@ outputs/*
 *.pth
 *.ckpt
 mlruns/
+mlflow.db
 mlartifacts/
 wandb/
 
@@ -32,3 +33,7 @@ wandb/
 .DS_Store
 .vscode/
 .idea/
+
+# virtual env kept out of iCloud sync (".venv" is a symlink to ".venv.nosync")
+.venv
+*.nosync

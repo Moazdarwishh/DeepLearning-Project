@@ -40,7 +40,8 @@ notebooks/        EDA & experiments only — final code lives in src/
 src/
   data/           dataset wrappers, stratified splits, caption cleaning, transforms
   models/         Encoder interface (multi-scale features), registry, encoders, heads
-  training/       generic Trainer, callbacks, hyperparameter tuning
+  training/       generic Trainer (task strategies), optimizer/scheduler, tuning
+  pipelines/      train / evaluate / predict per task (registered as CLI commands)
   evaluation/     metrics, benchmarking
   visualization/  EDA plots, learning curves, Grad-CAM
   utils/          config, seeding/device, experiment tracking (MLflow / W&B)
@@ -61,15 +62,21 @@ python -m src.cli data --action eda             --config configs/base.yaml
 python -m src.cli data --action augment-preview --config configs/cls_resnet50.yaml
 python -m src.cli data --action loader-check    --config configs/cls_resnet50.yaml
 
+# quick smoke test (2 short epochs, ~1-2 min on a laptop)
+python -m src.cli train --task classification --config configs/cls_scratch.yaml \
+    --set train.epochs=2 train.limit_train_batches=20 train.limit_val_batches=5 experiment.name=smoke
+
 # models
 python -m src.cli info     --config configs/cls_resnet50.yaml
 python -m src.cli train    --task classification --config configs/cls_scratch.yaml
 python -m src.cli train    --task classification --config configs/cls_resnet50.yaml --set train.lr=3e-4 model.freeze_backbone=true
-python -m src.cli evaluate --task classification --checkpoint outputs/cls-resnet50-ft/best.pt --split test
-python -m src.cli predict  --task classification --checkpoint outputs/cls-resnet50-ft/best.pt --image bird.jpg --topk 5
+python -m src.cli train    --task classification --config configs/cls_scratch.yaml --resume outputs/runs/cls-scratch/last.pt
+python -m src.cli evaluate --task classification --checkpoint outputs/runs/cls-scratch/best.pt --split val
+python -m src.cli evaluate --task classification --checkpoint outputs/runs/cls-scratch/best.pt --split test
+python -m src.cli predict  --task classification --checkpoint outputs/runs/cls-scratch/best.pt --image bird.jpg --topk 5
 python -m src.cli tune     --task classification --config configs/tune_grid.yaml
 python -m src.cli tune     --task classification --config configs/tune_random.yaml
-python -m src.cli gradcam  --task classification --checkpoint outputs/cls-resnet50-ft/best.pt
+python -m src.cli gradcam  --task classification --checkpoint outputs/runs/cls-resnet50-ft/best.pt
 ```
 
 Any config value can be overridden with `--set section.key=value`.
@@ -78,14 +85,14 @@ Any config value can be overridden with `--set section.key=value`.
 
 Set `tracking.backend` in a config to `mlflow`, `wandb` or `none`.
 
-- **MLflow:** runs are stored in `./mlruns`. View them with `mlflow ui`, then open http://127.0.0.1:5000.
+- **MLflow:** runs are stored in `mlflow.db` (SQLite). View them with `mlflow ui --backend-store-uri sqlite:///mlflow.db`, then open http://127.0.0.1:5000.
 - **W&B:** run `wandb login` once and set `tracking.entity` to your team.
 
 ## Status
 
 - [x] Project setup: structure, config system, tracking wrapper, encoder interface, CLI skeleton
 - [x] M1 — EDA & data preparation (split, EDA figures, caption cleaning, augmentation)
-- [ ] M1 — Scratch CNN baseline
+- [x] M1 — Scratch CNN, generic Trainer, train/evaluate/predict CLI (training runs pending)
 - [ ] M1 — Transfer learning
 - [ ] M1 — Grid vs random search
 - [ ] M1 — Evaluation & Grad-CAM

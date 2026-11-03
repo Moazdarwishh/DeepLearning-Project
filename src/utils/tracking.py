@@ -41,11 +41,10 @@ class NoOpTracker(Tracker):
         print(f"[tracking:none] run '{run_name}' started")
 
     def log_metrics(self, metrics, step=None):
-        shown = ", ".join(f"{k}={v:.4f}" for k, v in metrics.items())
-        print(f"[tracking:none] step={step} {shown}")
+        pass                                   # the Trainer already prints each epoch
 
     def log_artifact(self, path):
-        print(f"[tracking:none] artifact {path}")
+        pass
 
     def end_run(self):
         pass
@@ -100,9 +99,9 @@ class WandbTracker(Tracker):
             self._run = None
 
 
-def build_tracker(backend: str, project: str, tracking_uri: str | None = None,
+def build_tracker(backend: str | None, project: str, tracking_uri: str | None = None,
                   entity: str | None = None) -> Tracker:
-    backend = backend.lower()
+    backend = (backend or "none").lower()     # "--set tracking.backend=none" arrives as None
     if backend == "mlflow":
         return MLflowTracker(project, tracking_uri)
     if backend == "wandb":

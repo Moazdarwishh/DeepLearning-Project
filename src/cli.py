@@ -23,21 +23,11 @@ from __future__ import annotations
 import argparse
 import platform
 import sys
-from typing import Callable
 
+from src.utils.commands import HANDLERS, register  # noqa: F401  (re-exported)
 from src.utils.config import load_config
 
 TASKS = ("classification", "colorization", "captioning")
-
-# (command, task) -> handler(args). Filled in as each milestone is implemented.
-HANDLERS: dict[tuple[str, str], Callable[[argparse.Namespace], int]] = {}
-
-
-def register(command: str, task: str):
-    def decorator(fn):
-        HANDLERS[(command, task)] = fn
-        return fn
-    return decorator
 
 
 # --------------------------------------------------------------------------- #
@@ -158,7 +148,16 @@ def cmd_data(args: argparse.Namespace) -> int:
     raise ValueError(args.action)
 
 
+def _load_pipelines() -> None:
+    """Import task pipelines so they register their handlers (kept lazy: torch loads only here)."""
+    import importlib
+
+    for module in ("src.pipelines.classification",):
+        importlib.import_module(module)
+
+
 def dispatch(args: argparse.Namespace) -> int:
+    _load_pipelines()
     handler = HANDLERS.get((args.command, args.task))
     if handler is None:
         print(f"'{args.command}' for task '{args.task}' is not implemented yet.", file=sys.stderr)

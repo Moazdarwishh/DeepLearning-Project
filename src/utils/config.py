@@ -69,19 +69,28 @@ class TrainConfig:
     weight_decay: float = 1e-4
     momentum: float = 0.9
     scheduler: str = "cosine"               # cosine | step | none
+    step_size: int = 10                     # "step" scheduler: decay every N epochs
+    gamma: float = 0.1                      # "step" scheduler: decay factor
     warmup_epochs: int = 1
     label_smoothing: float = 0.1
     amp: bool = True                        # mixed precision on CUDA
     grad_clip: float | None = None
     early_stopping_patience: int = 10
     monitor: str = "val/accuracy"
+    monitor_mode: str = "max"               # max | min
+    save_every_epoch: bool = False          # also keep last.pt each epoch (for --resume)
+    # quick smoke runs on a laptop: only use the first N batches per epoch (None = all)
+    limit_train_batches: int | None = None
+    limit_val_batches: int | None = None
 
 
 @dataclass
 class TrackingConfig:
     backend: str = "mlflow"                 # mlflow | wandb | none
     project: str = "pixels-to-language"
-    tracking_uri: str | None = None         # mlflow only, default ./mlruns
+    # mlflow only. MLflow 3.x stores runs in a SQLite file; view with:
+    #   mlflow ui --backend-store-uri sqlite:///mlflow.db
+    tracking_uri: str | None = "sqlite:///mlflow.db"
     entity: str | None = None               # wandb team/user
 
 
@@ -180,6 +189,12 @@ def _read_yaml(path: str | Path) -> dict[str, Any]:
 def load_config(path: str | Path | None = None, overrides: list[str] | None = None) -> Config:
     """Load a YAML config (missing keys fall back to defaults) and apply overrides."""
     raw: dict[str, Any] = _read_yaml(path) if path is not None else {}
+    return config_from_dict(raw, overrides)
+
+
+def config_from_dict(raw: dict[str, Any], overrides: list[str] | None = None) -> Config:
+    """Build a Config from a plain dict (e.g. the one saved inside a checkpoint)."""
+    raw = dict(raw)
     section_types = {f.name: f.type for f in fields(Config)}
     unknown = set(raw) - set(section_types)
     if unknown:
