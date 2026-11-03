@@ -1,0 +1,25 @@
+# Transfer learning, strategy 1: LINEAR PROBE (Milestone 1, Task 1.2)
+# ImageNet-pretrained ResNet-50 is frozen; only the new 200-class head is trained.
+# Compare with cls_resnet50.yaml (full fine-tuning) and cls_scratch.yaml (no pretraining).
+_base_: base.yaml
+experiment:
+  name: cls-resnet50-probe
+  task: classification
+  tags: [classification, transfer, resnet50, linear-probe]
+data:
+  normalization: imagenet
+  batch_size: 64
+model:
+  name: resnet50
+  pretrained: true
+  dropout: 0.3
+  freeze_backbone: true
+train:
+  epochs: 30
+  optimizer: adamw
+  lr: 3.0e-3                 # only the head learns -> a larger learning rate is fine
+  weight_decay: 1.0e-4
+  scheduler: cosine
+  warmup_epochs: 1
+  label_smoothing: 0.1
+  early_stopping_patience: 8

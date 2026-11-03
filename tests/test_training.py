@@ -176,3 +176,40 @@ def test_early_stopping_tie_break_on_loss():
     assert not es.improved(0.8, 0.45)     # same accuracy, higher loss -> not better
     assert not es.improved(0.7, 0.1)
     assert es.should_stop
+
+
+# ------------------------------------------------------------- transfer (step 6)
+@pytest.mark.parametrize("arch,channels", [("resnet18", [64, 128, 256, 512]),
+                                           ("resnet50", [256, 512, 1024, 2048])])
+def test_resnet_encoder_stages(arch, channels):
+    pytest.importorskip("torchvision")
+    enc = build_encoder(arch, pretrained=False)          # no download in tests
+    feats = enc.forward_features(torch.randn(1, 3, 224, 224))
+    assert [f.shape[1] for f in feats] == channels == enc.out_channels
+    assert [224 // f.shape[-1] for f in feats] == [4, 8, 16, 32]
+    assert enc.last_conv_layer() is enc.layer4
+
+
+def test_linear_probe_freezes_backbone_and_batchnorm():
+    pytest.importorskip("torchvision")
+    cfg = load_config("configs/cls_resnet50_probe.yaml", ["model.pretrained=false"])
+    model = build_classifier(cfg.model)
+    params = count_parameters(model)
+    assert params["trainable"] == 2048 * 200 + 200            # only the head
+    model.train()
+    assert model.head.training and not model.encoder.training  # BN stays in eval mode
+    bn = model.encoder.stem[1]
+    before = bn.running_mean.clone()
+    model(torch.randn(4, 3, 64, 64))
+    assert torch.equal(before, bn.running_mean)                # statistics did not drift
+    opt = build_optimizer(model, cfg.train)
+    assert sum(p.numel() for g in opt.param_groups for p in g["params"]) == params["trainable"]
+
+
+def test_finetune_uses_smaller_backbone_lr():
+    pytest.importorskip("torchvision")
+    cfg = load_config("configs/cls_resnet50.yaml", ["model.pretrained=false"])
+    model = build_classifier(cfg.model)
+    assert count_parameters(model)["trainable"] == count_parameters(model)["total"]
+    groups = {g["name"]: g["lr"] for g in build_optimizer(model, cfg.train).param_groups}
+    assert groups["encoder.decay"] == pytest.approx(groups["head.decay"] / 10)

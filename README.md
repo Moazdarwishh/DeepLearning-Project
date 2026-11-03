@@ -32,6 +32,14 @@ On Colab / Kaggle:
 !git clone <repo-url> && cd <repo> && pip install -r requirements.txt
 ```
 
+## Training on Google Colab (free GPU)
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Moazdarwishh/DeepLearning-Project/blob/main/notebooks/colab_train.ipynb)
+
+`notebooks/colab_train.ipynb` clones this repo, installs the missing packages, stores `outputs/`
+(checkpoints, curves) and `mlflow.db` on Google Drive, and runs the same CLI commands on a T4 GPU.
+Set `Runtime → Change runtime type → T4 GPU` first, then run the cells top to bottom.
+
 ## Project structure
 
 ```
@@ -93,7 +101,7 @@ Set `tracking.backend` in a config to `mlflow`, `wandb` or `none`.
 - [x] Project setup: structure, config system, tracking wrapper, encoder interface, CLI skeleton
 - [x] M1 — EDA & data preparation (split, EDA figures, caption cleaning, augmentation)
 - [x] M1 — Scratch CNN, generic Trainer, train/evaluate/predict CLI (training runs pending)
-- [ ] M1 — Transfer learning
+- [x] M1 — Transfer learning code: ResNet-18/34/50, linear probe vs fine-tuning (training runs pending)
 - [ ] M1 — Grid vs random search
 - [ ] M1 — Evaluation & Grad-CAM
 - [ ] M2 — Colorization

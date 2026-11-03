@@ -34,9 +34,14 @@ class Encoder(nn.Module):
     def feature_dim(self) -> int:
         return self.out_channels[-1]
 
+    frozen: bool = False
+
     def freeze(self, trainable: bool = False) -> None:
+        """Freeze (or unfreeze) all encoder weights. A frozen encoder is also kept in eval
+        mode by Classifier.train(), so BatchNorm running statistics stay the pretrained ones."""
         for p in self.parameters():
             p.requires_grad = trainable
+        self.frozen = not trainable
 
     def last_conv_layer(self) -> nn.Module:
         """Layer used as Grad-CAM target. Override in concrete encoders."""
@@ -53,3 +58,9 @@ class Classifier(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.head(self.encoder(x))
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        if getattr(self.encoder, "frozen", False):
+            self.encoder.eval()        # linear probe: BatchNorm statistics must not drift
+        return self

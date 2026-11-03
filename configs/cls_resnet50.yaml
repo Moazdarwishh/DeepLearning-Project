@@ -1,9 +1,10 @@
-# Transfer learning: ImageNet-pretrained ResNet-50, full fine-tuning (Milestone 1, Task 1.2)
+# Transfer learning, strategy 2: FULL FINE-TUNING (Milestone 1, Task 1.2)
+# All ResNet-50 layers are trained; the pretrained backbone uses a 10x smaller learning rate.
 _base_: base.yaml
 experiment:
   name: cls-resnet50-ft
   task: classification
-  tags: [classification, transfer, resnet50]
+  tags: [classification, transfer, resnet50, fine-tune]
 data:
   normalization: imagenet
   batch_size: 32
