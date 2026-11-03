@@ -89,11 +89,22 @@ tests/
 
 ## Results
 
-| Model | Test accuracy | Top-5 | Macro F1 |
+Results on the official CUB-200-2011 test split (5,794 images, 224 px). Each model was picked by its best validation epoch, and the test set was evaluated once.
+
+| Model | Trainable params | Test accuracy | Top-5 | Macro F1 |
+|---|---|---|---|---|
+| Scratch CNN | 11.3M | 50.4% | 78.2% | 0.500 |
+| ResNet-50 (linear probe) | 0.41M | 69.8% | 91.7% | 0.699 |
+| ResNet-50 (fine-tuned) | 23.9M | **83.1%** | **95.6%** | **0.830** |
+
+For comparison, Barz and Denzler (WACV 2020) report 82.5% for a fine-tuned ResNet-50 and 55.5% for one trained from scratch with label smoothing, both at 448 px.
+
+Hyperparameter search on the linear probe (8 trials × 5 epochs each, same budget for both):
+
+| Search | Best val accuracy | Mean | Trials to best |
 |---|---|---|---|
-| Scratch CNN | | | |
-| ResNet-50 (linear probe) | | | |
-| ResNet-50 (fine-tuned) | | | |
+| Grid | 65.1% | 59.6% | 5 |
+| Random | 64.4% | 61.5% | 3 |
 
 ## Team
 

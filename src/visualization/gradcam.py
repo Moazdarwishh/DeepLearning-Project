@@ -64,7 +64,7 @@ def gradcam_grid(items: list[dict], model_names: list[str], path: Path, title: s
     import matplotlib.pyplot as plt
 
     cols = 1 + len(model_names)
-    fig, axes = plt.subplots(len(items), cols, figsize=(3.1 * cols, 3.25 * len(items)))
+    fig, axes = plt.subplots(len(items), cols, figsize=(3.1 * cols, 3.25 * len(items)), layout="constrained")
     axes = np.atleast_2d(axes)
     for row, it in zip(axes, items):
         row[0].imshow(it["image"])
@@ -78,7 +78,6 @@ def gradcam_grid(items: list[dict], model_names: list[str], path: Path, title: s
         ax.set_title(f"[{name}]\n" + ax.get_title(), fontsize=8)
     fig.suptitle(title, fontweight="bold")
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()
     fig.savefig(path, dpi=105, bbox_inches="tight")
     plt.close(fig)
     return path
