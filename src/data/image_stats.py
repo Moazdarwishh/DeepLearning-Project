@@ -1,8 +1,3 @@
-"""Per-image statistics for the EDA: size, colour mode, quality, perceptual hash.
-
-Images are read *without* the HF decoder so a corrupt file is caught and
-reported instead of crashing the scan.
-"""
 from __future__ import annotations
 
 import io
@@ -19,11 +14,7 @@ def _open(record):
 
 def scan_images(ds, split_name: str, channel_stats_indices: set[int] | None = None,
                 quality_size: int = 256):
-    """Return (DataFrame of per-image stats, channel mean/std over the given indices).
-
-    channel_stats_indices: rows used for the normalization mean/std (train split only,
-    never val/test, to avoid information leakage).
-    """
+    """Return (DataFrame of per-image stats, channel mean/std over the given indices)."""
     import cv2
     import imagehash
     import pandas as pd
@@ -44,7 +35,7 @@ def scan_images(ds, split_name: str, channel_stats_indices: set[int] | None = No
         try:
             img = _open(rec)
             img.load()
-        except Exception as exc:              # corrupt / undecodable
+        except Exception as exc:
             row.update(corrupt=True, error=str(exc)[:200])
             rows.append(row)
             continue
@@ -55,9 +46,6 @@ def scan_images(ds, split_name: str, channel_stats_indices: set[int] | None = No
         rgb = img.convert("RGB")
         arr = np.asarray(rgb, dtype=np.float32) / 255.0
 
-        # "Grayscale content": stored as RGB but (almost) no pixel has colour.
-        # We measure the share of clearly coloured pixels (channel range > 0.08), so a
-        # tern with a small red bill on a grey sky still counts as a colour photo.
         pixel_range = arr.max(axis=-1) - arr.min(axis=-1)
         row["colorful_fraction"] = float((pixel_range > 0.08).mean())
 
@@ -88,16 +76,13 @@ def scan_images(ds, split_name: str, channel_stats_indices: set[int] | None = No
 
 def find_near_duplicates(hashes_a: list[str], hashes_b: list[str] | None = None,
                          max_distance: int = 4, chunk: int = 512) -> list[tuple[int, int, int]]:
-    """Pairs (i, j, hamming) with perceptual-hash distance <= max_distance.
-
-    If hashes_b is None, compare a against itself (only i < j is returned).
-    """
+    """Pairs (i, j, hamming) with perceptual-hash distance <= max_distance."""
     a = np.array([int(h, 16) for h in hashes_a], dtype=np.uint64)
     same = hashes_b is None
     b = a if same else np.array([int(h, 16) for h in hashes_b], dtype=np.uint64)
 
     def popcount(x: np.ndarray) -> np.ndarray:
-        if hasattr(np, "bitwise_count"):            # numpy >= 2.0
+        if hasattr(np, "bitwise_count"):
             return np.bitwise_count(x)
         return np.unpackbits(x.view(np.uint8).reshape(*x.shape, 8), axis=-1).sum(-1)
 

@@ -27,6 +27,6 @@ def test_unknown_key_rejected():
 
 def test_base_inheritance():
     cfg = load_config("configs/cls_resnet50.yaml")
-    assert cfg.data.val_fraction == 0.15          # from base.yaml
-    assert cfg.data.batch_size == 32              # own value
+    assert cfg.data.val_fraction == 0.15
+    assert cfg.data.batch_size == 32
     assert cfg.experiment.name == "cls-resnet50-ft"

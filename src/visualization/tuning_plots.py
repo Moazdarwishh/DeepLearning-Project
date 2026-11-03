@@ -1,4 +1,3 @@
-"""Figures for hyperparameter searches."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -22,7 +21,7 @@ def _best_so_far(scores):
 
 
 def plot_search(results: list[dict], space: dict, out_path: Path, title: str, metric: str) -> Path:
-    """Left: score per trial + best-so-far. Right: score against each hyperparameter."""
+    """Score per trial and score against each hyperparameter."""
     results = sorted(results, key=lambda r: r["trial"])
     keys = list(space)
     fig, axes = plt.subplots(1, 1 + len(keys), figsize=(4.6 * (1 + len(keys)), 3.8))
@@ -40,7 +39,7 @@ def plot_search(results: list[dict], space: dict, out_path: Path, title: str, me
         spec = space[key]
         if isinstance(spec, dict) and spec.get("dist") == "loguniform" or key.endswith(("lr", "weight_decay")):
             ax.set_xscale("log")
-            ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())   # no overlapping labels
+            ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
         ax.set_xlabel(key)
         ax.set_title(f"{metric} vs {key.split('.')[-1]}")
     for ax in axes:

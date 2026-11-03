@@ -1,9 +1,3 @@
-"""Experiment-tracking abstraction.
-
-The trainer only talks to the ``Tracker`` interface, so switching between
-MLflow, Weights & Biases or no tracking is a one-line config change
-(Dependency Inversion principle).
-"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -26,7 +20,6 @@ class Tracker(ABC):
     @abstractmethod
     def end_run(self) -> None: ...
 
-    # Allow ``with build_tracker(cfg) as t:`` usage
     def __enter__(self) -> "Tracker":
         return self
 
@@ -35,13 +28,13 @@ class Tracker(ABC):
 
 
 class NoOpTracker(Tracker):
-    """Prints metrics; used for quick debugging or when tracking is disabled."""
+    """Tracker that does nothing (tracking.backend = none)."""
 
     def start_run(self, run_name, config, tags=None):
         print(f"[tracking:none] run '{run_name}' started")
 
     def log_metrics(self, metrics, step=None):
-        pass                                   # the Trainer already prints each epoch
+        pass
 
     def log_artifact(self, path):
         pass
@@ -65,7 +58,6 @@ class MLflowTracker(Tracker):
             self._mlflow.set_tags({t: "true" for t in tags})
 
     def log_metrics(self, metrics, step=None):
-        # MLflow metric names cannot contain '/' on some backends -> keep as-is, it is supported locally
         self._mlflow.log_metrics(metrics, step=step)
 
     def log_artifact(self, path):
@@ -101,7 +93,7 @@ class WandbTracker(Tracker):
 
 def build_tracker(backend: str | None, project: str, tracking_uri: str | None = None,
                   entity: str | None = None) -> Tracker:
-    backend = (backend or "none").lower()     # "--set tracking.backend=none" arrives as None
+    backend = (backend or "none").lower()
     if backend == "mlflow":
         return MLflowTracker(project, tracking_uri)
     if backend == "wandb":

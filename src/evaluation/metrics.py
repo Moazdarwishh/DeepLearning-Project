@@ -1,12 +1,3 @@
-"""Classification metrics (extended with per-class analysis in step 8).
-
-* accuracy        - fraction of images whose top prediction is correct.
-* top5_accuracy   - true class is among the 5 highest scores; useful for fine-grained
-                    classes where several species look alike.
-* macro precision / recall / F1 - computed per class, then averaged with equal weight,
-                    so the small test classes (e.g. Least Auklet, 11 images) count as much
-                    as the large ones.
-"""
 from __future__ import annotations
 
 import numpy as np
@@ -19,7 +10,7 @@ def topk_correct(logits, targets, k: int) -> int:
 
 
 def classification_metrics(logits, targets, num_classes: int | None = None) -> dict[str, float]:
-    """logits (N, C) tensor, targets (N,) tensor -> metric dict (all in 0-1)."""
+    """Accuracy, top-5 accuracy and macro precision/recall/F1 from logits."""
     from sklearn.metrics import precision_recall_fscore_support
 
     preds = logits.argmax(dim=1).cpu().numpy()

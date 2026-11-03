@@ -1,10 +1,3 @@
-"""Task strategies: everything task-specific the generic Trainer needs.
-
-The Trainer only knows "run batches, call task.loss, collect outputs, ask the task
-for metrics". Classification, colorization and captioning each implement this
-small interface, so the training loop is written once (Open/Closed + Dependency
-Inversion principles).
-"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -26,8 +19,6 @@ class Task(ABC):
 class ClassificationTask(Task):
     def __init__(self, num_classes: int, label_smoothing: float = 0.0):
         self.num_classes = num_classes
-        # Label smoothing: the target is 0.9 for the true class instead of 1.0, which
-        # discourages over-confident predictions - helpful with only ~25 images/class.
         self.criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
     def forward(self, model, batch, device):

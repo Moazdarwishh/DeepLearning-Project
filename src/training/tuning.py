@@ -1,28 +1,3 @@
-"""Hyperparameter search: Grid Search vs Random Search (and optional Optuna/TPE).
-
-How a search runs (``python -m src.cli tune --task classification --config configs/tune_grid.yaml``):
-
-1. The search space comes from ``tuning.search_space`` in the config::
-
-       train.lr: [1.0e-3, 1.0e-2]                              # list  -> grid values / random choice
-       train.lr: {dist: loguniform, low: 1.0e-3, high: 1.0e-2} # range -> random / optuna only
-
-2. Each trial = the base config + that trial's values, trained for
-   ``tuning.epochs_per_trial`` epochs. Trials are scored on the VALIDATION set
-   (``tuning.metric``, default val/accuracy). The test set is never used.
-3. After every trial, ``outputs/tuning/<name>/results.json`` is rewritten, so a
-   disconnected Colab session can simply re-run the command: finished trials are skipped.
-4. At the end: ``summary.json`` (best trial, budget, time-to-best, the exact command to
-   retrain the best setting) and ``search.png``.
-
-``compare_searches`` puts several searches side by side (best score, trials and minutes
-needed to reach it) - the comparison the project asks for.
-
-Why compare them: with the same budget, grid search tests only a few values per
-hyperparameter (2 x 2 x 2 here), while random search tests a new value in every trial.
-When only some hyperparameters matter (often the learning rate), random search explores
-the important ones more densely (Bergstra & Bengio, 2012).
-"""
 from __future__ import annotations
 
 import itertools
@@ -39,7 +14,6 @@ from src.utils.config import config_from_dict
 RANGE_KINDS = {"loguniform", "uniform", "int"}
 
 
-# --------------------------------------------------------------- search space
 def _is_range(spec) -> bool:
     return isinstance(spec, dict) and spec.get("dist") in RANGE_KINDS
 
@@ -72,7 +46,7 @@ def _sample(spec, rng: random.Random):
     if isinstance(spec, list):
         return rng.choice(spec)
     low, high = spec["low"], spec["high"]
-    if spec["dist"] == "loguniform":          # learning rates / weight decay: spread over orders of magnitude
+    if spec["dist"] == "loguniform":
         return float(math.exp(rng.uniform(math.log(low), math.log(high))))
     if spec["dist"] == "uniform":
         return float(rng.uniform(low, high))
@@ -80,7 +54,7 @@ def _sample(spec, rng: random.Random):
 
 
 def random_trials(space: dict[str, Any], n_trials: int, seed: int = 0) -> list[dict[str, Any]]:
-    """n_trials independent random draws (reproducible for a given seed)."""
+    """Draw n_trials random settings (reproducible for a given seed)."""
     validate_space(space, "random")
     rng = random.Random(seed)
     return [{k: _sample(spec, rng) for k, spec in space.items()} for _ in range(n_trials)]
@@ -94,7 +68,6 @@ def set_dotted(cfg, key: str, value) -> None:
     setattr(target, attr, value)
 
 
-# -------------------------------------------------------------------- running
 class SearchRunner:
     def __init__(self, cfg, data=None, base_config_path: str | None = None, train_fn=None):
         if train_fn is None:
@@ -114,10 +87,9 @@ class SearchRunner:
         if self.results:
             print(f"Resuming search '{cfg.experiment.name}': {len(self.results)} trial(s) already done.")
 
-    # one trial ---------------------------------------------------------------
     def _data_for(self, trial_cfg, params):
         if any(k.startswith("data.") for k in params):
-            return None                      # data settings change -> let train() rebuild datasets
+            return None
         if self.data is None:
             from src.data.classification import build_classification_data
             self.data = build_classification_data(trial_cfg)
@@ -144,7 +116,7 @@ class SearchRunner:
             if not self.tcfg.keep_checkpoints:
                 for ckpt in ("best.pt", "last.pt"):
                     (self.dir / "runs" / summary["run"] / ckpt).unlink(missing_ok=True)
-        except (FloatingPointError, RuntimeError) as exc:   # e.g. loss exploded with a huge lr
+        except (FloatingPointError, RuntimeError) as exc:
             print(f"Trial {index + 1} failed: {exc}", flush=True)
             record.update(status="failed", score=None, error=str(exc)[:300])
         record["minutes"] = round((time.perf_counter() - start) / 60, 3)
@@ -155,51 +127,20 @@ class SearchRunner:
     def _done(self, index: int, params: dict) -> bool:
         return any(r["trial"] == index and _same(r["params"], params) for r in self.results)
 
-    # whole search ------------------------------------------------------------
     def run(self) -> dict:
         start = time.perf_counter()
         if self.method == "grid":
             planned = grid_trials(self.space)
         elif self.method == "random":
             planned = random_trials(self.space, self.tcfg.n_trials, self.tcfg.seed)
-        elif self.method == "optuna":
-            self._run_optuna()
-            planned = None
         else:
-            raise ValueError(f"Unknown tuning.method '{self.method}' (grid | random | optuna)")
+            raise ValueError(f"Unknown tuning.method '{self.method}' (grid | random)")
 
-        if planned is not None:
-            print(f"{self.method} search: {len(planned)} trials x {self.tcfg.epochs_per_trial} epochs")
-            for i, params in enumerate(planned):
-                if not self._done(i, params):
-                    self.run_trial(i, params)
+        print(f"{self.method} search: {len(planned)} trials x {self.tcfg.epochs_per_trial} epochs")
+        for i, params in enumerate(planned):
+            if not self._done(i, params):
+                self.run_trial(i, params)
         return self.finish(time.perf_counter() - start)
-
-    def _run_optuna(self) -> None:
-        import optuna
-
-        optuna.logging.set_verbosity(optuna.logging.WARNING)
-        dists = {}
-        for key, spec in self.space.items():
-            if isinstance(spec, list):
-                dists[key] = optuna.distributions.CategoricalDistribution(spec)
-            elif spec["dist"] == "int":
-                dists[key] = optuna.distributions.IntDistribution(int(spec["low"]), int(spec["high"]))
-            else:
-                dists[key] = optuna.distributions.FloatDistribution(spec["low"], spec["high"],
-                                                                    log=spec["dist"] == "loguniform")
-        study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=self.tcfg.seed))
-        for r in self.results:                      # resume: tell Optuna what was already tried
-            if r["status"] == "ok":
-                study.add_trial(optuna.trial.create_trial(params=r["params"], distributions=dists, value=r["score"]))
-        print(f"optuna (TPE) search: {self.tcfg.n_trials} trials x {self.tcfg.epochs_per_trial} epochs")
-        for i in range(len(self.results), self.tcfg.n_trials):
-            trial = study.ask(dists)
-            record = self.run_trial(i, dict(trial.params))
-            if record["status"] == "ok":
-                study.tell(trial, record["score"])
-            else:
-                study.tell(trial, state=optuna.trial.TrialState.FAIL)
 
     def finish(self, elapsed_s: float) -> dict:
         from src.visualization.tuning_plots import plot_search
@@ -227,7 +168,6 @@ class SearchRunner:
         return summary
 
 
-# ------------------------------------------------------------------ summaries
 def summarize(results: list[dict], method: str, metric: str) -> dict:
     ok = [r for r in sorted(results, key=lambda r: r["trial"]) if r["status"] == "ok"]
     out = {"method": method, "metric": metric, "n_trials": len(results),

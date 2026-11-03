@@ -1,15 +1,3 @@
-"""Classification pipeline: train / evaluate / predict (wired to the CLI).
-
-Every training run writes to ``outputs/runs/<experiment.name>/``:
-
-    config.yaml     exact config used (after --set overrides)
-    best.pt         checkpoint with the best validation score (+ config + class names)
-    history.json    per-epoch metrics
-    curves.png      learning curves
-    summary.json    final validation metrics of the best checkpoint, timing, parameters
-
-The test set is only touched by ``evaluate --split test``, never during training.
-"""
 from __future__ import annotations
 
 import json
@@ -28,7 +16,7 @@ def _run_dir(cfg, resume: str | None) -> Path:
         return Path(resume).parent
     base = Path(cfg.experiment.output_dir) / "runs"
     path = base / cfg.experiment.name
-    if path.exists():                       # never overwrite an earlier run
+    if path.exists():
         path = base / f"{cfg.experiment.name}-{datetime.now():%Y%m%d-%H%M%S}"
     return path
 
@@ -82,7 +70,6 @@ def train(cfg, resume: str | None = None, data=None) -> dict:
         result = trainer.fit(loaders["train"], loaders["val"])
         train_time = time.perf_counter() - start
 
-        # Final, full validation pass with the best weights
         best = torch.load(run_dir / "best.pt", map_location=device, weights_only=False)
         model.load_state_dict(best["model_state"])
         val_metrics, _, _ = trainer.evaluate(loaders["val"], prefix="val")
@@ -110,13 +97,14 @@ def load_model(checkpoint: str | Path, device=None):
     device = device or get_device()
     ckpt = torch.load(checkpoint, map_location=device, weights_only=False)
     cfg = config_from_dict(ckpt["config"])
-    cfg.model.freeze_backbone = False            # irrelevant at inference
+    cfg.model.freeze_backbone = False
     model = build_classifier(cfg.model)
     model.load_state_dict(ckpt["model_state"])
     return model.to(device).eval(), cfg, ckpt, device
 
 
-def evaluate(checkpoint: str | Path, split: str = "test", overrides: list[str] | None = None) -> dict:
+def evaluate(checkpoint: str | Path, split: str = "test", overrides: list[str] | None = None,
+             analysis: bool = True, data=None) -> dict:
     import numpy as np
 
     from src.data.classification import build_classification_data, build_dataloaders
@@ -125,7 +113,7 @@ def evaluate(checkpoint: str | Path, split: str = "test", overrides: list[str] |
 
     model, cfg, ckpt, device = load_model(checkpoint)
     cfg = config_from_dict(cfg.to_dict(), overrides)
-    data = build_classification_data(cfg)
+    data = data or build_classification_data(cfg)
     loader = build_dataloaders(cfg, data)[split]
     task = ClassificationTask(cfg.model.num_classes, cfg.train.label_smoothing)
     metrics, logits, targets = evaluate_model(model, task, loader, device, prefix=split)
@@ -136,6 +124,15 @@ def evaluate(checkpoint: str | Path, split: str = "test", overrides: list[str] |
                         targets=targets.numpy(), indices=np.array(getattr(loader.dataset, "indices", [])))
     print(f"{split} ({len(targets)} images): " + ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()))
     print(f"Saved -> {run_dir / f'eval_{split}.json'} and predictions_{split}.npz")
+
+    if analysis:
+        from src.evaluation.analysis import analyze, print_summary
+
+        summary = analyze(logits.numpy(), targets.numpy(), ckpt["class_names"], run_dir / f"analysis_{split}",
+                          dataset=loader.dataset, reference=data.train,
+                          norm=(ckpt["norm_mean"], ckpt["norm_std"]))
+        print_summary(summary)
+        print(f"Analysis -> {run_dir / f'analysis_{split}'}")
     return metrics
 
 
@@ -169,7 +166,83 @@ def predict(checkpoint: str | Path, image: str | Path, topk: int = 5, output: st
     return results
 
 
-# ------------------------------------------------------------------ CLI hooks
+def gradcam(checkpoints: list[str | Path], image: str | None = None, split: str = "val", num_samples: int = 6,
+            output: str | Path = "outputs/gradcam", overrides: list[str] | None = None, data=None) -> list[Path]:
+    """Grad-CAM for one image, or for random CORRECT and WRONG predictions of the first model."""
+    import random
+
+    from PIL import Image
+
+    from src.data.classification import build_classification_data, build_dataloaders
+    from src.data.transforms import build_eval_transform, denormalize
+    from src.training.tasks import ClassificationTask
+    from src.training.trainer import evaluate_model
+    from src.visualization.gradcam import GradCAM, gradcam_grid
+
+    loaded = [load_model(c) for c in checkpoints]
+    names = [Path(c).parent.name for c in checkpoints]
+    model0, cfg0, ckpt0, device = loaded[0]
+    cfg0 = config_from_dict(cfg0.to_dict(), overrides)
+    class_names = ckpt0["class_names"]
+    norm0 = (ckpt0["norm_mean"], ckpt0["norm_std"])
+    cams = [GradCAM(m) for m, *_ in loaded]
+    out_dir = Path(output) / "_vs_".join(names)
+
+    def explain(x0: torch.Tensor, label: int | None) -> dict:
+        """Return the display image and one Grad-CAM map per model."""
+        raw = denormalize(x0, *norm0)
+        item = {"image": raw.permute(1, 2, 0).numpy(), "cams": [], "captions": [],
+                "label": f"TRUE: {class_names[label]}" if label is not None else "input"}
+        for (model, cfg, ckpt, _), cam in zip(loaded, cams):
+            mean = torch.tensor(ckpt["norm_mean"]).view(3, 1, 1)
+            std = torch.tensor(ckpt["norm_std"]).view(3, 1, 1)
+            x = ((raw - mean) / std).unsqueeze(0).to(device)
+            heat, logits, idx = cam(x)
+            prob = logits.softmax(1)[0, idx[0]].item()
+            pred = int(idx[0])
+            mark = "" if label is None else (" OK" if pred == label else " WRONG")
+            item["cams"].append(heat[0].cpu().numpy())
+            item["captions"].append(f"pred: {class_names[pred][:22]} ({prob:.0%}){mark}")
+        return item
+
+    saved = []
+    if image:
+        x0 = build_eval_transform(cfg0.data)(Image.open(image).convert("RGB"))
+        path = gradcam_grid([explain(x0, None)], names, out_dir / f"{Path(image).stem}_gradcam.png",
+                            f"Grad-CAM: {Path(image).name}")
+        saved.append(path)
+    else:
+        data = data or build_classification_data(cfg0)
+        loader = build_dataloaders(cfg0, data)[split]
+        task = ClassificationTask(cfg0.model.num_classes)
+        _, logits, targets = evaluate_model(model0, task, loader, device, prefix=split)
+        preds = logits.argmax(1)
+        rng = random.Random(cfg0.experiment.seed)
+        correct = [i for i in range(len(targets)) if preds[i] == targets[i]]
+        wrong = [i for i in range(len(targets)) if preds[i] != targets[i]]
+        for kind, pool in (("correct", correct), ("wrong", wrong)):
+            if not pool:
+                continue
+            chosen = rng.sample(pool, min(num_samples, len(pool)))
+            items = []
+            for i in chosen:
+                x0, y = loader.dataset[i]
+                items.append(explain(x0, int(y)))
+            title = (f"Grad-CAM on {kind.upper()} predictions of {names[0]} ({split} set) - "
+                     "red = regions that drove the prediction")
+            saved.append(gradcam_grid(items, names, out_dir / f"gradcam_{split}_{kind}.png", title))
+    for c in cams:
+        c.remove()
+    for p in saved:
+        print(f"saved -> {p}")
+    return saved
+
+
+def compare(run_dirs: list[str | Path], split: str = "test", output: str | Path = "outputs") -> list[dict]:
+    from src.evaluation.analysis import compare_runs
+    return compare_runs(run_dirs, split, output)
+
+
 @register("train", "classification")
 def _cli_train(args) -> int:
     cfg = load_config(args.config, args.set)
@@ -181,7 +254,19 @@ def _cli_train(args) -> int:
 
 @register("evaluate", "classification")
 def _cli_evaluate(args) -> int:
-    evaluate(args.checkpoint, args.split, args.set)
+    evaluate(args.checkpoint, args.split, args.set, analysis=not args.no_analysis)
+    return 0
+
+
+@register("gradcam", "classification")
+def _cli_gradcam(args) -> int:
+    gradcam(args.checkpoint, args.image, args.split, args.num_samples, args.output, args.set)
+    return 0
+
+
+@register("compare", "classification")
+def _cli_compare(args) -> int:
+    compare(args.runs, args.split, args.output)
     return 0
 
 

@@ -1,13 +1,3 @@
-"""Generic, task-agnostic training loop.
-
-The Trainer receives everything it needs (model, task strategy, optimizer,
-scheduler, tracker) from outside - it contains no classification-specific code,
-so Milestone 2 (colorization, captioning) reuses it unchanged.
-
-Features: per-batch LR scheduling, mixed precision on CUDA, gradient clipping,
-early stopping on a monitored validation metric, best/last checkpoints, resume,
-per-epoch history (JSON) and experiment-tracker logging.
-"""
 from __future__ import annotations
 
 import json
@@ -47,9 +37,7 @@ def evaluate_model(model, task: Task, loader, device, limit: int | None = None, 
 
 
 class EarlyStopping:
-    """Tracks the monitored metric. Ties are broken by a secondary value (lower is better,
-    e.g. validation loss), so between two epochs with equal accuracy the better-calibrated
-    one is kept."""
+    """Tracks the monitored metric."""
 
     def __init__(self, patience: int, mode: str = "max"):
         self.patience, self.mode = patience, mode
@@ -85,14 +73,13 @@ class Trainer:
         self.cfg = train_cfg
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.run_info = run_info or {}          # config, class names... stored in checkpoints
+        self.run_info = run_info or {}
         self.history: list[dict[str, float]] = []
         self.start_epoch = 0
         self.stopper = EarlyStopping(train_cfg.early_stopping_patience, train_cfg.monitor_mode)
         self.use_amp = bool(train_cfg.amp) and self.device.type == "cuda"
         self.scaler = torch.amp.GradScaler("cuda", enabled=self.use_amp)
 
-    # ------------------------------------------------------------------ steps
     def _autocast(self):
         return torch.autocast("cuda", dtype=torch.float16) if self.use_amp else nullcontext()
 
@@ -118,7 +105,7 @@ class Trainer:
             n = targets.shape[0]
             total_loss += loss.item() * n
             seen += n
-            if outputs.dim() == 2 and targets.dim() == 1:          # cheap running accuracy
+            if outputs.dim() == 2 and targets.dim() == 1:
                 correct += int((outputs.argmax(1) == targets).sum())
         out = {"train/loss": total_loss / max(seen, 1)}
         if correct:
@@ -129,7 +116,6 @@ class Trainer:
         """Returns (metrics with prefix, all outputs, all targets) - outputs kept on CPU."""
         return evaluate_model(self.model, self.task, loader, self.device, limit, prefix, self.use_amp)
 
-    # ------------------------------------------------------------------- loop
     def fit(self, train_loader, val_loader) -> dict[str, Any]:
         best_epoch = None
         for epoch in range(self.start_epoch, self.cfg.epochs):
@@ -156,12 +142,11 @@ class Trainer:
                 print(f"Early stopping: no improvement in {self.cfg.monitor} for "
                       f"{self.stopper.patience} epochs.", flush=True)
                 break
-        if best_epoch is None and self.history:      # resumed run that never improved
+        if best_epoch is None and self.history:
             best_epoch = max(self.history, key=lambda r: r[self.cfg.monitor])["epoch"]
         return {"best_epoch": best_epoch, "best_score": self.stopper.best,
                 "monitor": self.cfg.monitor, "epochs_run": len(self.history)}
 
-    # ------------------------------------------------------------ persistence
     def save_checkpoint(self, path: Path, epoch: int) -> None:
         torch.save({
             "epoch": epoch,

@@ -8,7 +8,6 @@ from src.training.tuning import (SearchRunner, compare_searches, grid_trials, ra
 from src.utils.config import load_config
 
 
-# ---------------------------------------------------------- search spaces
 def test_project_configs_have_equal_budgets():
     grid = load_config("configs/tune_grid.yaml")
     rnd = load_config("configs/tune_random.yaml")
@@ -29,18 +28,18 @@ def test_random_respects_ranges_and_seed():
              "model.dropout": {"dist": "uniform", "low": 0.1, "high": 0.6},
              "data.batch_size": [32, 64]}
     a, b = random_trials(space, 50, seed=3), random_trials(space, 50, seed=3)
-    assert a == b                                              # reproducible
+    assert a == b
     assert all(1e-4 <= t["train.lr"] <= 1e-1 and 0.1 <= t["model.dropout"] <= 0.6 for t in a)
     assert {t["data.batch_size"] for t in a} <= {32, 64}
-    logs = [math.log10(t["train.lr"]) for t in a]              # log-uniform covers every decade
+    logs = [math.log10(t["train.lr"]) for t in a]
     assert min(logs) < -3 and max(logs) > -2
-    assert len({t["train.lr"] for t in a}) == 50               # a new value every trial
+    assert len({t["train.lr"] for t in a}) == 50
 
 
 @pytest.mark.parametrize("space,method", [
-    ({"train.lr": {"dist": "loguniform", "low": 1e-3, "high": 1e-2}}, "grid"),   # grid needs lists
-    ({"lr": [1, 2]}, "random"),                                                   # missing section
-    ({"train.lr": {"dist": "loguniform", "low": 0, "high": 1}}, "random"),       # log of 0
+    ({"train.lr": {"dist": "loguniform", "low": 1e-3, "high": 1e-2}}, "grid"),
+    ({"lr": [1, 2]}, "random"),
+    ({"train.lr": {"dist": "loguniform", "low": 0, "high": 1}}, "random"),
     ({}, "grid"),
 ])
 def test_invalid_spaces_rejected(space, method):
@@ -48,9 +47,7 @@ def test_invalid_spaces_rejected(space, method):
         validate_space(space, method)
 
 
-# --------------------------------------------------------------- running
 def _fake_train(scores_by_lr):
-    """Stand-in for the real train(): returns a summary whose score depends on the lr."""
     calls = []
 
     def train(cfg, data=None):
@@ -76,7 +73,7 @@ def test_search_runs_all_trials_and_picks_best(tmp_path):
     train, calls = _fake_train(lambda lr, d: 0.5 + lr - d / 10)
     space = {"train.lr": [0.01, 0.1], "model.dropout": [0.2, 0.5]}
     summary = SearchRunner(_cfg(tmp_path, "g", "grid", space), data=object(), train_fn=train).run()
-    assert len(calls) == 4 and all(c.train.epochs == 2 for c in calls)        # epochs_per_trial applied
+    assert len(calls) == 4 and all(c.train.epochs == 2 for c in calls)
     assert summary["best_params"] == {"train.lr": 0.1, "model.dropout": 0.2}
     assert summary["trials_to_best"] == 3
     assert "--set train.lr=0.1 model.dropout=0.2" in summary["retrain_command"]
@@ -85,14 +82,14 @@ def test_search_runs_all_trials_and_picks_best(tmp_path):
 
 
 def test_search_resumes_and_survives_failed_trial(tmp_path):
-    space = {"train.lr": [0.01, 5.0, 0.1]}                                       # 5.0 -> "nan" failure
+    space = {"train.lr": [0.01, 5.0, 0.1]}
     train, calls = _fake_train(lambda lr, d: lr)
     cfg = _cfg(tmp_path, "r", "grid", space)
     runner = SearchRunner(cfg, data=object(), train_fn=train)
-    runner.run_trial(0, {"train.lr": 0.01})                                     # pretend we were cut off
+    runner.run_trial(0, {"train.lr": 0.01})
     train2, calls2 = _fake_train(lambda lr, d: lr)
     summary = SearchRunner(cfg, data=object(), train_fn=train2).run()
-    assert [c.train.lr for c in calls2] == [5.0, 0.1]                           # trial 1 skipped
+    assert [c.train.lr for c in calls2] == [5.0, 0.1]
     assert summary["n_trials"] == 3 and summary["n_failed"] == 1 and summary["best_score"] == 0.1
 
 
@@ -110,21 +107,12 @@ def test_random_search_and_comparison(tmp_path, capsys):
     assert "distinct values" in capsys.readouterr().out
 
 
-def test_optuna_search(tmp_path):
-    pytest.importorskip("optuna")
-    space = {"train.lr": {"dist": "loguniform", "low": 1e-3, "high": 1e-1}}
-    train, calls = _fake_train(lambda lr, d: -abs(math.log10(lr) + 2))         # best near lr=1e-2
-    s = SearchRunner(_cfg(tmp_path, "tpe", "optuna", space, n=6), data=object(), train_fn=train).run()
-    assert s["n_trials"] == 6 and len(calls) == 6
-
-
 def test_summarize_handles_all_failed():
     s = summarize([{"trial": 0, "params": {}, "status": "failed", "score": None, "minutes": 1.0}], "grid", "val/accuracy")
     assert s["n_failed"] == 1 and "best_params" not in s
 
 
 def test_tune_runs_real_training_end_to_end(tmp_path):
-    """Real Trainer on tiny synthetic images: 2 grid trials x 1 epoch."""
     pytest.importorskip("torch")
     import sys
     sys.path.insert(0, "tests")
@@ -139,5 +127,5 @@ def test_tune_runs_real_training_end_to_end(tmp_path):
     assert s["n_trials"] == 2 and s["n_failed"] == 0
     runs = tmp_path / "tuning" / "tiny-search" / "runs"
     assert (runs / "trial-00" / "history.json").exists()
-    assert not (runs / "trial-00" / "best.pt").exists()                       # checkpoints cleaned up
+    assert not (runs / "trial-00" / "best.pt").exists()
     assert json.loads((tmp_path / "tuning" / "tiny-search" / "results.json").read_text())[0]["status"] == "ok"

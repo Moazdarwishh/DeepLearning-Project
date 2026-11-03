@@ -1,4 +1,3 @@
-"""Matplotlib figures for the EDA (saved as PNG into outputs/eda/figures)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -84,7 +83,7 @@ def image_grid(images, titles, out_dir: Path, name: str, suptitle: str, ncols: i
 
 
 def pair_grid(pairs, out_dir: Path, name: str, suptitle: str) -> Path | None:
-    """pairs: list of (img_a, title_a, img_b, title_b)."""
+    """One row per pair: the misclassified image and a training image of the predicted class."""
     if not pairs:
         return None
     fig, axes = plt.subplots(len(pairs), 2, figsize=(6, 3.3 * len(pairs)))

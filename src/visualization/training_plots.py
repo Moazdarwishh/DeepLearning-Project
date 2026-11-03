@@ -1,4 +1,3 @@
-"""Learning curves from a run's history.json."""
 from __future__ import annotations
 
 from pathlib import Path

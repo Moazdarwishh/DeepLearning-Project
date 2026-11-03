@@ -1,118 +1,104 @@
 # From Pixels to Language
-**CSE485 / CSE488 Deep Learning — Final Project**
 
-One CNN encoder trained on CUB-200-2011 birds and reused for three tasks:
+Final project for CSE485/CSE488 Deep Learning.
 
-| Task | Input → Output | Milestone |
-|------|----------------|-----------|
-| Classification | image → 1 of 200 species | M1 |
-| Colorization | grayscale → color | M2 |
-| Captioning | image → sentence | M2 |
+We train a CNN encoder on the CUB-200-2011 bird dataset and reuse it for three tasks: species classification, image colorization and image captioning. This repository currently contains the first milestone (classification).
 
-Dataset: [`Multimodal-Fatima/CUB_train`](https://huggingface.co/datasets/Multimodal-Fatima/CUB_train) and [`Multimodal-Fatima/CUB_test`](https://huggingface.co/datasets/Multimodal-Fatima/CUB_test).
+Data: [Multimodal-Fatima/CUB_train](https://huggingface.co/datasets/Multimodal-Fatima/CUB_train) and [Multimodal-Fatima/CUB_test](https://huggingface.co/datasets/Multimodal-Fatima/CUB_test) (200 species, ~5.9k train / ~5.8k test images, 10 captions per image).
 
 ## Setup
 
 ```bash
-# 1. Create and activate a virtual environment (Python 3.10+)
 python3 -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
-
-# 2. Install dependencies
-pip install --upgrade pip
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# 3. Check the setup
-python -m src.cli info --config configs/cls_resnet50.yaml
 pytest -q
 ```
 
-On Colab / Kaggle:
+The dataset is downloaded from Hugging Face the first time it is used.
+
+## Usage
+
+Everything runs through one command line entry point, `python -m src.cli`. Experiment settings live in `configs/`, and any value can be overridden with `--set section.key=value`.
+
+Data preparation:
+
 ```bash
-!git clone <repo-url> && cd <repo> && pip install -r requirements.txt
+python -m src.cli data --action split --config configs/base.yaml
+python -m src.cli data --action eda --config configs/base.yaml
+python -m src.cli data --action augment-preview --config configs/cls_resnet50.yaml
 ```
 
-## Training on Google Colab (free GPU)
+Training:
+
+```bash
+python -m src.cli train --task classification --config configs/cls_scratch.yaml
+python -m src.cli train --task classification --config configs/cls_resnet50_probe.yaml
+python -m src.cli train --task classification --config configs/cls_resnet50.yaml
+```
+
+Each run is saved in `outputs/runs/<name>/` (checkpoints, learning curves, metrics). An interrupted run can be resumed with `--resume outputs/runs/<name>/last.pt`.
+
+Evaluation and inference:
+
+```bash
+python -m src.cli evaluate --task classification --checkpoint outputs/runs/cls-resnet50-ft/best.pt --split test
+python -m src.cli compare --task classification --runs outputs/runs/cls-scratch outputs/runs/cls-resnet50-ft --split test
+python -m src.cli predict --task classification --checkpoint outputs/runs/cls-resnet50-ft/best.pt --image bird.jpg
+python -m src.cli gradcam --task classification --checkpoint outputs/runs/cls-resnet50-ft/best.pt outputs/runs/cls-scratch/best.pt --split test
+```
+
+Hyperparameter search:
+
+```bash
+python -m src.cli tune --task classification --config configs/tune_grid.yaml
+python -m src.cli tune --task classification --config configs/tune_random.yaml
+python -m src.cli tune --task classification --compare outputs/tuning/tune-grid outputs/tuning/tune-random
+```
+
+## Training on Colab
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Moazdarwishh/DeepLearning-Project/blob/main/notebooks/colab_train.ipynb)
 
-`notebooks/colab_train.ipynb` clones this repo, installs the missing packages, stores `outputs/`
-(checkpoints, curves) and `mlflow.db` on Google Drive, and runs the same CLI commands on a T4 GPU.
-Set `Runtime → Change runtime type → T4 GPU` first, then run the cells top to bottom.
+We trained on Colab T4 GPUs. `notebooks/colab_train.ipynb` clones the repo, saves outputs to Google Drive and runs the same commands as above. Select a GPU runtime before running it.
+
+## Experiment tracking
+
+Runs are logged with MLflow to `mlflow.db`. To browse them:
+
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
 
 ## Project structure
 
 ```
-configs/          YAML experiment configs (inherit configs/base.yaml via `_base_`)
-notebooks/        EDA & experiments only — final code lives in src/
+configs/        experiment configs
+data/splits/    train/validation split and excluded images
+notebooks/      Colab notebook
 src/
-  data/           dataset wrappers, stratified splits, caption cleaning, transforms
-  models/         Encoder interface (multi-scale features), registry, encoders, heads
-  training/       generic Trainer (task strategies), optimizer/scheduler, grid/random/optuna search
-  pipelines/      train / evaluate / predict per task (registered as CLI commands)
-  evaluation/     metrics, benchmarking
-  visualization/  EDA plots, learning curves, Grad-CAM
-  utils/          config, seeding/device, experiment tracking (MLflow / W&B)
-  cli.py          single entry point for every task
-tests/            pytest unit tests
-data/splits/      saved train/val split indices (committed — everyone uses the same split)
-outputs/          checkpoints, figures, logs (git-ignored)
-docs/             project plan and notes
+  data/         dataset loading, EDA, caption cleaning, transforms
+  models/       encoders (scratch CNN, ResNet) and classifier
+  training/     trainer, optimizer, hyperparameter search
+  evaluation/   metrics and result analysis
+  pipelines/    train / evaluate / predict commands
+  visualization/ plots and Grad-CAM
+  cli.py
+tests/
 ```
 
-## CLI
+## Results
 
-```bash
-# data
-python -m src.cli data --action inspect         --config configs/base.yaml
-python -m src.cli data --action split           --config configs/base.yaml
-python -m src.cli data --action eda             --config configs/base.yaml
-python -m src.cli data --action augment-preview --config configs/cls_resnet50.yaml
-python -m src.cli data --action loader-check    --config configs/cls_resnet50.yaml
-
-# quick smoke test (2 short epochs, ~1-2 min on a laptop)
-python -m src.cli train --task classification --config configs/cls_scratch.yaml \
-    --set train.epochs=2 train.limit_train_batches=20 train.limit_val_batches=5 experiment.name=smoke
-
-# models
-python -m src.cli info     --config configs/cls_resnet50.yaml
-python -m src.cli train    --task classification --config configs/cls_scratch.yaml
-python -m src.cli train    --task classification --config configs/cls_resnet50.yaml --set train.lr=3e-4 model.freeze_backbone=true
-python -m src.cli train    --task classification --config configs/cls_scratch.yaml --resume outputs/runs/cls-scratch/last.pt
-python -m src.cli evaluate --task classification --checkpoint outputs/runs/cls-scratch/best.pt --split val
-python -m src.cli evaluate --task classification --checkpoint outputs/runs/cls-scratch/best.pt --split test
-python -m src.cli predict  --task classification --checkpoint outputs/runs/cls-scratch/best.pt --image bird.jpg --topk 5
-python -m src.cli tune     --task classification --config configs/tune_grid.yaml
-python -m src.cli tune     --task classification --config configs/tune_random.yaml
-python -m src.cli gradcam  --task classification --checkpoint outputs/runs/cls-resnet50-ft/best.pt
-```
-
-Any config value can be overridden with `--set section.key=value`.
-
-## Experiment tracking
-
-Set `tracking.backend` in a config to `mlflow`, `wandb` or `none`.
-
-- **MLflow:** runs are stored in `mlflow.db` (SQLite). View them with `mlflow ui --backend-store-uri sqlite:///mlflow.db`, then open http://127.0.0.1:5000.
-- **W&B:** run `wandb login` once and set `tracking.entity` to your team.
-
-## Status
-
-- [x] Project setup: structure, config system, tracking wrapper, encoder interface, CLI skeleton
-- [x] M1 — EDA & data preparation (split, EDA figures, caption cleaning, augmentation)
-- [x] M1 — Scratch CNN, generic Trainer, train/evaluate/predict CLI (training runs pending)
-- [x] M1 — Transfer learning code: ResNet-18/34/50, linear probe vs fine-tuning (training runs pending)
-- [x] M1 — Grid vs random search code (`tune` command, resumable, comparison table/figure; runs pending)
-- [ ] M1 — Evaluation & Grad-CAM
-- [ ] M2 — Colorization
-- [ ] M2 — Captioning
+| Model | Test accuracy | Top-5 | Macro F1 |
+|---|---|---|---|
+| Scratch CNN | | | |
+| ResNet-50 (linear probe) | | | |
+| ResNet-50 (fine-tuned) | | | |
 
 ## Team
 
-| Member | GitHub | Main ownership |
-|--------|--------|----------------|
-|  |  |  |
+| Name | GitHub |
+|---|---|
+| | |
 
-## Links
-- Trained models (Google Drive): _TBD_
-- Report: _TBD_
+Trained models: _link to Google Drive_

@@ -1,25 +1,3 @@
-"""Command-line interface for every task.
-
-Examples::
-
-    python -m src.cli info     --config configs/cls_resnet50.yaml
-    python -m src.cli data     --action inspect --config configs/base.yaml
-    python -m src.cli data     --action split   --config configs/base.yaml
-    python -m src.cli data     --action eda     --config configs/base.yaml
-    python -m src.cli data     --action augment-preview --config configs/cls_resnet50.yaml
-    python -m src.cli data     --action loader-check    --config configs/cls_resnet50.yaml
-    python -m src.cli train    --task classification --config configs/cls_resnet50.yaml
-    python -m src.cli train    --task classification --config configs/cls_scratch.yaml --set train.lr=3e-4
-    python -m src.cli evaluate --task classification --checkpoint outputs/cls_resnet50/best.pt
-    python -m src.cli predict  --task classification --checkpoint outputs/cls_resnet50/best.pt --image bird.jpg
-    python -m src.cli tune     --task classification --config configs/tune_grid.yaml
-    python -m src.cli tune     --task classification --config configs/tune_random.yaml
-    python -m src.cli tune     --task classification --compare outputs/tuning/tune-grid outputs/tuning/tune-random
-    python -m src.cli gradcam  --task classification --checkpoint outputs/cls_resnet50/best.pt --image bird.jpg
-
-Commands are dispatched through ``HANDLERS`` so each task registers its own
-functions without editing the parser (heavy imports such as torch stay lazy).
-"""
 from __future__ import annotations
 
 import argparse
@@ -32,11 +10,8 @@ from src.utils.config import load_config
 TASKS = ("classification", "colorization", "captioning")
 
 
-# --------------------------------------------------------------------------- #
-# Built-in commands
-# --------------------------------------------------------------------------- #
 def cmd_info(args: argparse.Namespace) -> int:
-    """Print environment + resolved config: a quick check that setup works."""
+    """Print environment + resolved config."""
     print(f"Python      : {platform.python_version()} ({platform.system()} {platform.machine()})")
     try:
         import torch
@@ -53,7 +28,7 @@ def cmd_info(args: argparse.Namespace) -> int:
 
 
 def cmd_data(args: argparse.Namespace) -> int:
-    """Dataset utilities: inspect the HF repos, create the train/val split."""
+    """Dataset utilities."""
     import json
     from pathlib import Path
 
@@ -151,7 +126,6 @@ def cmd_data(args: argparse.Namespace) -> int:
 
 
 def _load_pipelines() -> None:
-    """Import task pipelines so they register their handlers (kept lazy: torch loads only here)."""
     import importlib
 
     for module in ("src.pipelines.classification",):
@@ -167,9 +141,6 @@ def dispatch(args: argparse.Namespace) -> int:
     return handler(args)
 
 
-# --------------------------------------------------------------------------- #
-# Parser
-# --------------------------------------------------------------------------- #
 def _add_common(p: argparse.ArgumentParser, needs_task: bool = True) -> None:
     if needs_task:
         p.add_argument("--task", choices=TASKS, default="classification")
@@ -202,6 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p)
     p.add_argument("--checkpoint", required=True)
     p.add_argument("--split", choices=("val", "test"), default="test")
+    p.add_argument("--no-analysis", action="store_true", help="Skip per-class / confusion analysis")
     p.set_defaults(func=dispatch)
 
     p = sub.add_parser("predict", help="Run inference on one image or a folder")
@@ -212,18 +184,27 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", help="Where to save the prediction/visualization")
     p.set_defaults(func=dispatch)
 
-    p = sub.add_parser("tune", help="Hyperparameter search (grid | random | optuna) or compare searches")
+    p = sub.add_parser("tune", help="Hyperparameter search (grid | random) or compare searches")
     _add_common(p)
     p.add_argument("--compare", nargs="+", metavar="SEARCH_DIR",
                    help="Compare finished searches, e.g. outputs/tuning/tune-grid outputs/tuning/tune-random")
     p.set_defaults(func=dispatch)
 
-    p = sub.add_parser("gradcam", help="Grad-CAM visualizations")
+    p = sub.add_parser("gradcam", help="Grad-CAM visualizations (correct vs wrong, model vs model)")
     _add_common(p)
-    p.add_argument("--checkpoint", required=True)
-    p.add_argument("--image", help="Single image; omit to sample correct/wrong val predictions")
-    p.add_argument("--num-samples", type=int, default=8)
+    p.add_argument("--checkpoint", required=True, nargs="+",
+                   help="One or more best.pt files; with several, the same images are shown for each model")
+    p.add_argument("--image", help="Single image; omit to sample correct and wrong predictions")
+    p.add_argument("--split", choices=("val", "test"), default="val")
+    p.add_argument("--num-samples", type=int, default=6, help="Images per figure (correct / wrong)")
     p.add_argument("--output", default="outputs/gradcam")
+    p.set_defaults(func=dispatch)
+
+    p = sub.add_parser("compare", help="Compare evaluated runs side by side (table + bar chart)")
+    _add_common(p)
+    p.add_argument("--runs", required=True, nargs="+", help="Run folders, e.g. outputs/runs/cls-scratch")
+    p.add_argument("--split", choices=("val", "test"), default="test")
+    p.add_argument("--output", default="outputs")
     p.set_defaults(func=dispatch)
 
     return parser

@@ -1,13 +1,3 @@
-"""Full exploratory data analysis (Milestone 1, Task 1.1).
-
-``python -m src.cli data --action eda`` runs everything and writes:
-
-    outputs/eda/image_stats.csv          one row per image (train + test)
-    outputs/eda/eda_summary.json         every number used in the report
-    outputs/eda/spell_fixes.json         typo -> correction map used for cleaning
-    outputs/eda/figures/*.png            all EDA figures
-    data/processed/captions_clean.json   {"train": {id: [10 captions]}, "test": {...}}
-"""
 from __future__ import annotations
 
 import json
@@ -28,11 +18,11 @@ def _quality_thresholds(df) -> dict:
         "dark": 0.15,
         "bright": 0.85,
         "low_contrast": 0.06,
-        "blurry": float(np.percentile(df["blur_laplacian_var"].dropna(), 1)),  # bottom 1 %
+        "blurry": float(np.percentile(df["blur_laplacian_var"].dropna(), 1)),
         "small_side": 150,
-        "gray_colorful_fraction": 0.001,   # < 0.1 % of pixels carry any colour -> grayscale
-        "duplicate_exact": 2,         # pHash Hamming distance for a confident duplicate
-        "duplicate_candidate": 6,     # looser candidates, reported for manual review
+        "gray_colorful_fraction": 0.001,
+        "duplicate_exact": 2,
+        "duplicate_candidate": 6,
     }
 
 
@@ -70,7 +60,6 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
     names = get_class_names(train)
     dsets = {"train": train, "test": test}
 
-    # ------------------------------------------------------------------ images
     df_train, channel = scan_images(train, "train", set(split.train_indices))
     df_test, _ = scan_images(test, "test")
     df_train.loc[df_train["index"].isin(split.val_indices), "split"] = "val"
@@ -82,7 +71,7 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
     ok = _flag_quality(ok, thr)
     ok.to_csv(out / "image_stats.csv", index=False)
 
-    def source(split_name):  # val rows live in the HF train set
+    def source(split_name):
         return "test" if split_name == "test" else "train"
 
     def img(row):
@@ -91,13 +80,11 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
     def title(row, extra=""):
         return f"{names[int(row['label'])][:22]}\n{row['split']}#{int(row['index'])} {extra}".strip()
 
-    # class distribution
     counts = {s: np.bincount(ok.loc[ok["split"] == s, "label"].astype(int), minlength=200)
               for s in ("train", "val", "test")}
     figures = [P.class_distribution(counts, fig_dir), P.image_sizes(ok, fig_dir),
                P.quality(ok, fig_dir, thr)]
 
-    # grayscale images
     gray = ok[ok["is_grayscale_mode"] | ok["is_grayscale_content"]]
     sample = gray.sample(min(max_grid, len(gray)), random_state=0) if len(gray) else gray
     figures.append(P.image_grid([img(r) for _, r in sample.iterrows()],
@@ -105,7 +92,6 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
                                 fig_dir, "04_grayscale_images.png",
                                 f"Grayscale images ({len(gray)} total)"))
 
-    # lowest-quality examples
     worst = pd.concat([ok.nsmallest(4, "blur_laplacian_var").assign(why="blurry"),
                        ok.nsmallest(4, "brightness").assign(why="dark"),
                        ok.nsmallest(4, "contrast").assign(why="low contrast")])
@@ -114,7 +100,6 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
                                 fig_dir, "05_low_quality_examples.png",
                                 "Lowest-quality images (blur / darkness / contrast)"))
 
-    # duplicates (perceptual hash, Hamming distance <= 4)
     tr_rows = ok[ok["split"].isin(["train", "val"])].reset_index(drop=True)
     te_rows = ok[ok["split"] == "test"].reset_index(drop=True)
     cand = thr["duplicate_candidate"]
@@ -155,7 +140,6 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
     figures.append(P.pair_grid(pairs, fig_dir, "06b_duplicate_false_positives.png",
                                "Looser matches: mostly similar plain backgrounds, not duplicates"))
 
-    # sample grid + fine-grained example (all gulls)
     picks = rng.sample(range(200), 18)
     rows = [ok[(ok["split"] == "train") & (ok["label"] == c)].iloc[0] for c in picks]
     figures.append(P.image_grid([img(r) for r in rows], [names[int(r["label"])] for r in rows],
@@ -167,7 +151,6 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
                                 f"Fine-grained difficulty: the {len(gulls)} gull species look alike",
                                 ncols=4))
 
-    # ---------------------------------------------------------------- captions
     cap_stats = {s: caption_statistics(d["description"]) for s, d in dsets.items()}
     lengths_all = cap_stats["train"]["_lengths"] + cap_stats["test"]["_lengths"]
     p95 = float(np.percentile(lengths_all, 95))
@@ -176,7 +159,6 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
     color_counts = Counter(cap_stats["train"]["color_word_counts"]) + Counter(cap_stats["test"]["color_word_counts"])
     figures.append(P.color_words(dict(color_counts), fig_dir))
 
-    # spell fixes are learned from the TRAIN captions only, then applied to both splits
     fixes = build_spell_fixes(cap_stats["train"]["_word_counts"], cap_stats["train"]["_bigram_counts"])
     fix_kinds = {"merged_words_split": sum(" " in v for v in fixes.values()),
                  "typos_corrected": sum(" " not in v for v in fixes.values())}
@@ -190,7 +172,6 @@ def run_eda(cfg, max_grid: int = 12) -> dict:
     for s in cap_stats.values():
         s.pop("_lengths"); s.pop("_word_counts"); s.pop("_bigram_counts")
 
-    # ----------------------------------------------------------------- summary
     flags = [c for c in ok.columns if c.startswith("is_")]
     summary = {
         "rows": {s: int((df["split"] == s).sum()) for s in ("train", "val", "test")},

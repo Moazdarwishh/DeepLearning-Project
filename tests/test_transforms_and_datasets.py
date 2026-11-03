@@ -62,7 +62,6 @@ def test_normalization_choice_and_denormalize_roundtrip():
     assert torch.allclose(back[:, 100, 100], torch.tensor([200, 100, 50]) / 255.0, atol=1e-2)
 
 
-# ----------------------------------------------------------------- datasets
 def _fake_cub(n, num_classes, offset=0, gray_every=7):
     from datasets import ClassLabel, Dataset, Features, Value
     from datasets import Image as HFImage
@@ -105,7 +104,7 @@ def test_datasets_respect_split_and_exclusions(fake_setup):
 def test_grayscale_images_become_rgb(fake_setup):
     cfg, train_hf, test_hf, *_ = fake_setup
     data = build_classification_data(cfg, train_hf, test_hf)
-    gray_pos = data.test.indices.index(0)          # row 0 is stored as "L"
+    gray_pos = data.test.indices.index(0)
     x, _ = data.test[gray_pos]
     assert x.shape[0] == 3
 
@@ -115,8 +114,8 @@ def test_dataloaders_batch_and_shuffle(fake_setup):
     loaders = build_dataloaders(cfg, build_classification_data(cfg, train_hf, test_hf))
     x, y = next(iter(loaders["train"]))
     assert x.shape == (8, 3, 224, 224) and y.shape == (8,)
-    assert len(loaders["train"]) == 80 // 8               # drop_last on train
-    assert len(loaders["val"]) == 3                       # 19 images -> 8 + 8 + 3
+    assert len(loaders["train"]) == 80 // 8
+    assert len(loaders["val"]) == 3
 
 
 def test_load_exclusions_missing_file(tmp_path):
@@ -128,4 +127,4 @@ def test_repo_exclusions_file_is_valid():
     assert sorted(excl["val"]) == [774, 5277]
     from src.data.splits import load_split
     split = load_split("data/splits")
-    assert set(excl["val"]) <= set(split.val_indices)     # they really are validation images
+    assert set(excl["val"]) <= set(split.val_indices)

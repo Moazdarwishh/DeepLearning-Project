@@ -1,10 +1,3 @@
-"""Loading CUB-200-2011 (with captions) from the Hugging Face Hub.
-
-The HF repos expose one split each (``CUB_train`` / ``CUB_test``) with the
-columns ``image``, ``label``, ``description`` (10 captions joined by "\\n"),
-``file_name`` and ``id``. Helpers here are task-agnostic; the PyTorch
-``Dataset`` classes for each task build on top of them.
-"""
 from __future__ import annotations
 
 from collections import Counter
@@ -32,7 +25,6 @@ def get_labels(ds) -> list[int]:
 
 
 def _pretty(raw: str) -> str:
-    """'001.Black_footed_Albatross' -> 'Black footed Albatross'."""
     name = raw.split(".", 1)[-1] if raw[:3].isdigit() else raw
     return name.replace("_", " ").strip()
 

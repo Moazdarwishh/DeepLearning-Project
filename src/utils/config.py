@@ -1,9 +1,3 @@
-"""Typed experiment configuration loaded from YAML.
-
-Every run is fully described by one YAML file (see ``configs/``). Values can be
-overridden from the CLI with ``--set section.key=value`` so that tuning scripts
-and teammates never need to edit code.
-"""
 from __future__ import annotations
 
 import ast
@@ -17,7 +11,7 @@ import yaml
 @dataclass
 class ExperimentConfig:
     name: str = "default"
-    task: str = "classification"          # classification | colorization | captioning
+    task: str = "classification"
     seed: int = 42
     output_dir: str = "outputs"
     tags: list[str] = field(default_factory=list)
@@ -29,81 +23,74 @@ class DataConfig:
     test_dataset: str = "Multimodal-Fatima/CUB_test"
     cache_dir: str | None = None
     splits_dir: str = "data/splits"
-    val_fraction: float = 0.15              # stratified split carved from train
+    val_fraction: float = 0.15
     image_size: int = 224
-    resize_size: int = 256                  # eval: resize -> center crop
-    normalization: str = "imagenet"         # imagenet | dataset
-    # CUB train-split statistics measured in the EDA (5,094 train images only)
+    resize_size: int = 256
+    normalization: str = "imagenet"
     dataset_mean: list[float] = field(default_factory=lambda: [0.4848, 0.4994, 0.4327])
     dataset_std: list[float] = field(default_factory=lambda: [0.2323, 0.2277, 0.2662])
-    exclusions_file: str = "data/splits/exclusions.json"   # images dropped after the EDA
+    exclusions_file: str = "data/splits/exclusions.json"
     batch_size: int = 32
     num_workers: int = 2
 
-    # --- augmentation (train only; see src/data/transforms.py for the reasoning)
     augment: bool = True
-    crop_scale_min: float = 0.5             # RandomResizedCrop keeps 50-100 % of the image
+    crop_scale_min: float = 0.5
     hflip_prob: float = 0.5
     rotation_degrees: float = 10.0
     brightness: float = 0.3
     contrast: float = 0.3
-    saturation: float = 0.2                 # mild; hue is never changed
+    saturation: float = 0.2
 
 
 @dataclass
 class ModelConfig:
-    name: str = "resnet50"                  # key in the model registry
+    name: str = "resnet50"
     pretrained: bool = True
     num_classes: int = 200
     dropout: float = 0.3
     freeze_backbone: bool = False
-    params: dict[str, Any] = field(default_factory=dict)   # model-specific extras
+    params: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class TrainConfig:
     epochs: int = 30
-    optimizer: str = "adamw"                # adamw | sgd
+    optimizer: str = "adamw"
     lr: float = 1e-3
-    backbone_lr: float | None = None        # lower LR for pretrained layers
+    backbone_lr: float | None = None
     weight_decay: float = 1e-4
     momentum: float = 0.9
-    scheduler: str = "cosine"               # cosine | step | none
-    step_size: int = 10                     # "step" scheduler: decay every N epochs
-    gamma: float = 0.1                      # "step" scheduler: decay factor
+    scheduler: str = "cosine"
+    step_size: int = 10
+    gamma: float = 0.1
     warmup_epochs: int = 1
     label_smoothing: float = 0.1
-    amp: bool = True                        # mixed precision on CUDA
+    amp: bool = True
     grad_clip: float | None = None
     early_stopping_patience: int = 10
     monitor: str = "val/accuracy"
-    monitor_mode: str = "max"               # max | min
-    save_every_epoch: bool = False          # also keep last.pt each epoch (for --resume)
-    # quick smoke runs on a laptop: only use the first N batches per epoch (None = all)
+    monitor_mode: str = "max"
+    save_every_epoch: bool = False
     limit_train_batches: int | None = None
     limit_val_batches: int | None = None
 
 
 @dataclass
 class TrackingConfig:
-    backend: str = "mlflow"                 # mlflow | wandb | none
+    backend: str = "mlflow"
     project: str = "pixels-to-language"
-    # mlflow only. MLflow 3.x stores runs in a SQLite file; view with:
-    #   mlflow ui --backend-store-uri sqlite:///mlflow.db
     tracking_uri: str | None = "sqlite:///mlflow.db"
-    entity: str | None = None               # wandb team/user
+    entity: str | None = None
 
 
 @dataclass
 class TuningConfig:
-    method: str = "grid"                    # grid | random | optuna
-    n_trials: int = 8                       # used by random / optuna (grid = size of the grid)
-    epochs_per_trial: int = 5               # short runs: tuning compares settings, not final models
-    seed: int = 0                           # sampling seed for random / optuna
-    metric: str = "val/accuracy"            # what "best trial" means (always maximised)
-    keep_checkpoints: bool = False          # delete trial checkpoints to save disk space
-    # "section.key": [values]                         -> grid values / random choice
-    # "section.key": {dist: loguniform|uniform|int, low, high}  -> random / optuna only
+    method: str = "grid"
+    n_trials: int = 8
+    epochs_per_trial: int = 5
+    seed: int = 0
+    metric: str = "val/accuracy"
+    keep_checkpoints: bool = False
     search_space: dict[str, Any] = field(default_factory=dict)
 
 
@@ -120,7 +107,7 @@ class Config:
         return asdict(self)
 
     def flat(self) -> dict[str, Any]:
-        """Flatten to ``{"train.lr": 1e-3, ...}`` for experiment trackers."""
+        """Flatten to {"train.lr": 1e-3, ...} for experiment trackers."""
         out: dict[str, Any] = {}
         for section, values in self.to_dict().items():
             for key, value in values.items():
@@ -181,7 +168,6 @@ def _deep_merge(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
 
 
 def _read_yaml(path: str | Path) -> dict[str, Any]:
-    """Read YAML, resolving an optional ``_base_: other.yaml`` (relative path) first."""
     path = Path(path)
     with open(path) as f:
         raw = yaml.safe_load(f) or {}
@@ -198,7 +184,7 @@ def load_config(path: str | Path | None = None, overrides: list[str] | None = No
 
 
 def config_from_dict(raw: dict[str, Any], overrides: list[str] | None = None) -> Config:
-    """Build a Config from a plain dict (e.g. the one saved inside a checkpoint)."""
+    """Build a Config from a plain dict, e.g. the one stored in a checkpoint."""
     raw = dict(raw)
     section_types = {f.name: f.type for f in fields(Config)}
     unknown = set(raw) - set(section_types)

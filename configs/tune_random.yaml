@@ -1,7 +1,3 @@
-# RANDOM SEARCH (Milestone 1, hyperparameter tuning)
-# Same model, data, epochs and budget (8 trials x 5 epochs) as tune_grid.yaml, and the same
-# ranges - but every trial draws NEW values, so each hyperparameter is tried at 8 different
-# values instead of 2 (Bergstra & Bengio, 2012).
 _base_: base.yaml
 experiment:
   name: tune-random

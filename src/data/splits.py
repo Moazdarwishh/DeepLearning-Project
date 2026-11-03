@@ -1,9 +1,3 @@
-"""Stratified train/validation split carved from the official CUB train set.
-
-The split is saved to JSON and committed to git so every teammate and every
-run uses exactly the same images for validation. The official test set is
-never used for model selection or tuning.
-"""
 from __future__ import annotations
 
 import json

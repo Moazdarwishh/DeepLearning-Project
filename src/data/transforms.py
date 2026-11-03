@@ -1,32 +1,3 @@
-"""Image preprocessing and augmentation for CUB-200-2011 (Milestone 1, Task 1.1).
-
-Augmentation strategy and why (numbers come from the EDA):
-
-* RandomRotation(10 deg), applied first and filled with the mean colour
-    Photos are taken at slight angles (branches, handheld cameras). Rotating
-    before cropping means the crop usually cuts away the empty corners, so the
-    model does not learn "black triangles in the corners" as a pattern.
-* RandomResizedCrop(224, scale=(0.5, 1.0))
-    Images have varied sizes (120-500 px) and aspect ratios (0.4-3.6) and the
-    bird is not always centred. Random crops teach scale/position invariance.
-    The minimum scale is 0.5 (not torchvision's 0.08) because birds are small
-    in many photos; tiny crops would often cut the bird out entirely.
-* RandomHorizontalFlip(p=0.5)
-    A bird facing left is the same species facing right.
-* ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0)
-    The EDA found ~1 % dark, bright and low-contrast images; jitter makes the
-    model robust to lighting. Hue is NEVER changed: plumage colour is a key
-    feature to tell species apart (red vs. orange vs. yellow), and colour is the
-    target of the colorization task in Milestone 2.
-
-Deliberately NOT used:
-* Vertical flip / large rotations - birds are never upside down in real photos.
-* Random grayscale - would destroy the colour cue (see hue above).
-
-Evaluation (val/test) is deterministic: Resize(256) -> CenterCrop(224).
-Normalization uses ImageNet statistics for pretrained models (they were trained
-with them) and our own train-split statistics for the from-scratch CNN.
-"""
 from __future__ import annotations
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -49,8 +20,6 @@ def build_train_transform(data_cfg):
     mean, std = normalization_stats(data_cfg)
     if not data_cfg.augment:
         return build_eval_transform(data_cfg)
-    # Rotate BEFORE cropping so the crop usually removes the empty corners; any gap left
-    # is filled with the mean colour (normalizes to ~0) instead of black.
     fill = [int(round(255 * m)) for m in mean]
     return v2.Compose([
         v2.ToImage(),
@@ -80,7 +49,7 @@ def build_eval_transform(data_cfg):
 
 
 def denormalize(tensor, mean, std):
-    """Undo Normalize for plotting: (C,H,W) or (B,C,H,W) tensor -> values in [0, 1]."""
+    """Undo Normalize for plotting."""
     import torch
 
     shape = (-1, 1, 1) if tensor.dim() == 3 else (1, -1, 1, 1)

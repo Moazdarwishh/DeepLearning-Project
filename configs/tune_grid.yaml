@@ -1,7 +1,3 @@
-# GRID SEARCH (Milestone 1, hyperparameter tuning)
-# Same model, data, epochs and budget as tune_random.yaml -> a fair comparison.
-# Budget: 2 x 2 x 2 = 8 trials x 5 epochs, on the ResNet-50 linear probe (fast: only the head trains).
-# Grid search can only try 2 values per hyperparameter with this budget.
 _base_: base.yaml
 experiment:
   name: tune-grid
@@ -19,7 +15,7 @@ train:
   scheduler: cosine
   warmup_epochs: 1
   label_smoothing: 0.1
-  early_stopping_patience: 0     # every trial runs its full 5 epochs
+  early_stopping_patience: 0
   save_every_epoch: false
 tuning:
   method: grid

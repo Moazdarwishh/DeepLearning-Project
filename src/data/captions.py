@@ -1,17 +1,3 @@
-"""Caption splitting, statistics and cleaning.
-
-Each image's ``description`` holds 10 captions separated by newlines. Cleaning
-(used later by the captioning model in Milestone 2):
-
-1. split on newlines and strip whitespace
-2. lowercase, normalise unicode to ASCII
-3. keep only letters (punctuation and digits become spaces)
-4. collapse whitespace
-5. fix *rare* misspellings: a word is corrected only if the spell checker does
-   not know it, it is rare in our corpus, and its correction is a frequent
-   word of our corpus. This protects bird vocabulary (e.g. "superciliary",
-   "auriculars") that a general English dictionary does not know.
-"""
 from __future__ import annotations
 
 import re
@@ -22,11 +8,8 @@ from typing import Iterable
 from .datasets import split_captions
 
 _NON_LETTERS = re.compile(r"[^a-z\s]")
-# Apostrophes and the unicode replacement char (a broken apostrophe in the raw
-# captions, e.g. "bird\ufffds") are deleted, so "bird's" -> "birds", not "bird s".
 _APOSTROPHES = re.compile("['\u2019`\ufffd]")
 
-# Valid bird-description words a general English dictionary does not know.
 PROTECTED_WORDS = {
     "bicolored", "tricolored", "multicolored", "otherside", "birdy", "wingbar", "wingbars",
     "eyering", "eyebrow", "eyestripe", "superciliary", "malar", "auriculars", "rectrices",
@@ -54,7 +37,7 @@ def normalize(text: str) -> str:
 
 
 def clean_caption(text: str, spell_fixes: dict[str, str] | None = None) -> str:
-    """Fixes may map one token to two words (e.g. "redwith" -> "red with")."""
+    """Clean one caption; spell fixes may split a token into two words."""
     tokens = normalize(text).split()
     if spell_fixes:
         tokens = [spell_fixes.get(t, t) for t in tokens]
@@ -63,11 +46,6 @@ def clean_caption(text: str, spell_fixes: dict[str, str] | None = None) -> str:
 
 def _split_merged(word: str, word_counts: Counter, bigram_counts: Counter | None,
                   min_count: int, min_bigram: int = 5) -> str | None:
-    """'agray' -> 'a gray', 'redwith' -> 'red with'.
-
-    Both halves must be frequent words AND the two-word phrase must itself occur in the
-    corpus, which rejects nonsense splits such as 'aalso' -> 'a also' or 'asnd' -> 'as nd'.
-    """
     best = None
     for k in range(1, len(word)):
         left, right = word[:k], word[k:]
@@ -92,11 +70,11 @@ def build_spell_fixes(word_counts: Counter, bigram_counts: Counter | None = None
     unknown = spell.unknown(candidates)
     fixes: dict[str, str] = {}
     for word in sorted(unknown):
-        merged = _split_merged(word, word_counts, bigram_counts, min_target_count)   # 1) two words glued together
+        merged = _split_merged(word, word_counts, bigram_counts, min_target_count)
         if merged:
             fixes[word] = merged
             continue
-        correction = spell.correction(word)                          # 2) ordinary typo
+        correction = spell.correction(word)
         if correction and correction != word and word_counts.get(correction, 0) >= min_target_count:
             fixes[word] = correction
     return fixes
@@ -146,13 +124,13 @@ def caption_statistics(descriptions: Iterable[str], top_k: int = 30) -> dict:
         "top_words": content.most_common(top_k),
         "color_word_counts": {c: word_counts.get(c, 0) for c in COLOR_WORDS},
         "punctuation_counts": dict(raw_chars.most_common(15)),
-        "_lengths": lengths,           # removed before saving JSON; used for plots
+        "_lengths": lengths,
         "_word_counts": word_counts,
         "_bigram_counts": bigram_counts,
     }
 
 
 def clean_all(ids: list, descriptions: list[str], spell_fixes: dict[str, str]) -> dict[str, list[str]]:
-    """{image_id: [10 cleaned captions]} for one split."""
+    """Map each image id to its cleaned captions."""
     return {str(i): [clean_caption(c, spell_fixes) for c in split_captions(d)]
             for i, d in zip(ids, descriptions)}

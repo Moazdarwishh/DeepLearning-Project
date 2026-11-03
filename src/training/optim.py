@@ -1,14 +1,3 @@
-"""Optimizer and learning-rate schedule from the config.
-
-* Two parameter groups: encoder ("backbone") and head. For pretrained models the
-  backbone gets a smaller learning rate (train.backbone_lr) so the useful ImageNet
-  features are only gently adjusted, while the new head learns fast.
-* No weight decay on biases and BatchNorm parameters (standard practice: decaying
-  them only hurts).
-* Schedulers step every batch: linear warm-up for ``warmup_epochs`` (avoids large,
-  unstable updates at the start when weights are random), then cosine decay to 0
-  or step decay.
-"""
 from __future__ import annotations
 
 import math
@@ -53,7 +42,7 @@ def build_optimizer(model, train_cfg) -> torch.optim.Optimizer:
 
 
 def build_scheduler(optimizer, train_cfg, steps_per_epoch: int):
-    """Per-batch LambdaLR: warm-up then cosine / step / constant."""
+    """Per-batch LambdaLR."""
     total = max(1, train_cfg.epochs * steps_per_epoch)
     warmup = min(train_cfg.warmup_epochs * steps_per_epoch, total - 1)
     kind = train_cfg.scheduler.lower()

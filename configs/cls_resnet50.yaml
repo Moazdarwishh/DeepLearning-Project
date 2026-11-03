@@ -1,5 +1,3 @@
-# Transfer learning, strategy 2: FULL FINE-TUNING (Milestone 1, Task 1.2)
-# All ResNet-50 layers are trained; the pretrained backbone uses a 10x smaller learning rate.
 _base_: base.yaml
 experiment:
   name: cls-resnet50-ft
@@ -12,12 +10,12 @@ model:
   name: resnet50
   pretrained: true
   dropout: 0.3
-  freeze_backbone: false     # set true for the linear-probe experiment
+  freeze_backbone: false
 train:
   epochs: 30
   optimizer: adamw
-  lr: 1.0e-3                 # head
-  backbone_lr: 1.0e-4        # pretrained layers
+  lr: 1.0e-3
+  backbone_lr: 1.0e-4
   weight_decay: 1.0e-4
   scheduler: cosine
   warmup_epochs: 1

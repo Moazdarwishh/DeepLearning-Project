@@ -43,6 +43,6 @@ def test_merged_words_and_apostrophes():
     bigrams = Counter({("a", "gray"): 200, ("red", "with"): 90})
     fixes = build_spell_fixes(wc, bigrams)
     assert fixes["agray"] == "a gray" and fixes["redwith"] == "red with"
-    assert fixes.get("aalso") == "also"          # no "a also" phrase -> normal typo fix
+    assert fixes.get("aalso") == "also"
     assert "bicolored" not in fixes
     assert clean_caption("this bird�s wings agray", fixes) == "this birds wings a gray"

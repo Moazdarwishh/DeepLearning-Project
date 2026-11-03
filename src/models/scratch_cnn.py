@@ -1,21 +1,3 @@
-"""CNN trained from scratch (Milestone 1 baseline).
-
-Architecture (ResNet-style, ~11 M parameters with the default widths):
-
-    stem   : conv3x3(s2) -> conv3x3          224 -> 112   (32 -> widths[0] channels)
-    stage 1: blocks_per_stage blocks, s2      112 ->  56   widths[0]
-    stage 2: blocks_per_stage blocks, s2       56 ->  28   widths[1]
-    stage 3: blocks_per_stage blocks, s2       28 ->  14   widths[2]
-    stage 4: blocks_per_stage blocks, s2       14 ->   7   widths[3]
-
-Each block is two 3x3 conv-BN-ReLU layers. With ``residual=True`` the block adds a
-skip connection (He et al., 2016), which lets gradients flow through deep networks;
-``residual=False`` gives a plain VGG-style network for the architecture comparison.
-
-The four stage outputs are returned by ``forward_features`` so the same encoder
-can later serve as the U-Net encoder (colorization) and the image feature grid
-(captioning).
-"""
 from __future__ import annotations
 
 import torch
@@ -44,7 +26,6 @@ class ConvBlock(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.shortcut = nn.Identity()
         if residual and (stride != 1 or c_in != c_out):
-            # 1x1 projection so the skip connection matches shape
             self.shortcut = nn.Sequential(nn.Conv2d(c_in, c_out, 1, stride=stride, bias=False),
                                           nn.BatchNorm2d(c_out))
 

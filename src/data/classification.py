@@ -1,9 +1,3 @@
-"""PyTorch datasets and dataloaders for the classification task.
-
-Train/val come from the official CUB train set (rows chosen by our saved
-stratified split); test is the official CUB test set. Images flagged in the
-EDA (see ``data/splits/exclusions.json``) are dropped before anything else.
-"""
 from __future__ import annotations
 
 import json
@@ -18,11 +12,11 @@ from .transforms import build_eval_transform, build_train_transform
 
 
 class CUBClassificationDataset(Dataset):
-    """Wraps an HF CUB dataset: returns (image tensor, label) for the given row indices."""
+    """Wraps an HF CUB dataset."""
 
     def __init__(self, hf_dataset, indices: list[int] | None = None, transform=None):
         cols = [c for c in ("image", "label") if c in hf_dataset.column_names]
-        self.data = hf_dataset.select_columns(cols)       # skip decoding captions
+        self.data = hf_dataset.select_columns(cols)
         self.indices = list(range(len(hf_dataset))) if indices is None else list(indices)
         self.transform = transform
 
@@ -31,7 +25,7 @@ class CUBClassificationDataset(Dataset):
 
     def __getitem__(self, i: int):
         row = self.data[int(self.indices[i])]
-        image = row["image"].convert("RGB")               # 8 images are stored as grayscale ("L")
+        image = row["image"].convert("RGB")
         if self.transform is not None:
             image = self.transform(image)
         return image, int(row["label"])
@@ -43,7 +37,7 @@ class CUBClassificationDataset(Dataset):
 
 
 def load_exclusions(path: str | Path) -> dict[str, list[int]]:
-    """{'train': [...], 'val': [...], 'test': [...]} row indices to drop (missing file -> none)."""
+    """Row indices to drop per split (empty if the file is missing)."""
     path = Path(path)
     out = {"train": [], "val": [], "test": []}
     if not path.exists():
@@ -90,7 +84,7 @@ def build_classification_data(cfg, train_hf=None, test_hf=None) -> Classificatio
 
 
 def build_dataloaders(cfg, data: ClassificationData) -> dict[str, DataLoader]:
-    """Seeded, reproducible loaders. Shuffle only the training set."""
+    """Seeded, reproducible loaders."""
     import torch
 
     from src.utils.reproducibility import seed_worker

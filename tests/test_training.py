@@ -1,4 +1,3 @@
-"""Trainer, optimizer, scheduler and the classification pipeline on tiny synthetic data."""
 import json
 from dataclasses import dataclass
 
@@ -12,10 +11,7 @@ from src.training.optim import build_optimizer, build_scheduler
 from src.utils.config import load_config
 
 
-# ------------------------------------------------------------------ helpers
 class PatternDataset(Dataset):
-    """Each class = a different bright square position; easy to learn."""
-
     def __init__(self, n_per_class=12, num_classes=4, size=32, seed=0):
         g = torch.Generator().manual_seed(seed)
         self.items = []
@@ -23,7 +19,8 @@ class PatternDataset(Dataset):
             for _ in range(n_per_class):
                 x = torch.randn(3, size, size, generator=g) * 0.3
                 r, col = divmod(c, 2)
-                x[:, r * 16:(r + 1) * 16, col * 16:(col + 1) * 16] += 2.0
+                h = size // 2
+                x[:, r * h:(r + 1) * h, col * h:(col + 1) * h] += 2.0
                 self.items.append((x, c))
         self.indices = list(range(len(self.items)))
 
@@ -54,7 +51,6 @@ def tiny_cfg(tmp_path, *extra):
         "tracking.backend=none", f"experiment.output_dir={tmp_path}", "experiment.name=tiny", *extra])
 
 
-# ------------------------------------------------------------------ models
 @pytest.mark.parametrize("residual", [True, False])
 def test_scratch_cnn_stages(residual):
     enc = build_encoder("scratch_cnn", widths=[16, 32, 64, 128], blocks_per_stage=2, residual=residual)
@@ -76,14 +72,13 @@ def test_freeze_backbone_leaves_only_head_trainable():
     assert params["trainable"] == 512 * 200 + 200
 
 
-# --------------------------------------------------------------- optimizer
 def test_param_groups_and_backbone_lr(tmp_path):
     cfg = tiny_cfg(tmp_path, "train.backbone_lr=1e-4")
     model = build_classifier(cfg.model)
     opt = build_optimizer(model, cfg.train)
     by_name = {g["name"]: g for g in opt.param_groups}
     assert by_name["encoder.decay"]["lr"] == 1e-4 and by_name["head.decay"]["lr"] == 3e-3
-    assert by_name["encoder.no_decay"]["weight_decay"] == 0.0     # biases / BatchNorm
+    assert by_name["encoder.no_decay"]["weight_decay"] == 0.0
 
 
 def test_warmup_then_cosine_to_zero(tmp_path):
@@ -95,12 +90,11 @@ def test_warmup_then_cosine_to_zero(tmp_path):
         lrs.append(opt.param_groups[-1]["lr"])
         opt.step()
         sched.step()
-    assert lrs[0] < lrs[9]                       # warm-up increases
-    assert lrs[9] == pytest.approx(3e-3)         # peak after 2 epochs
-    assert lrs[-1] < 1e-4                        # cosine decays to ~0
+    assert lrs[0] < lrs[9]
+    assert lrs[9] == pytest.approx(3e-3)
+    assert lrs[-1] < 1e-4
 
 
-# ----------------------------------------------------------------- training
 def test_training_pipeline_learns_and_saves(tmp_path):
     from src.pipelines.classification import load_model, train
     from src.training.tasks import ClassificationTask
@@ -112,11 +106,11 @@ def test_training_pipeline_learns_and_saves(tmp_path):
     run = tmp_path / "runs" / "tiny"
     for f in ("best.pt", "config.yaml", "history.json", "curves.png", "summary.json"):
         assert (run / f).exists(), f
-    assert summary["best_val"]["val/accuracy"] >= 0.9           # easy patterns are learned
+    assert summary["best_val"]["val/accuracy"] >= 0.9
     history = json.loads((run / "history.json").read_text())
     assert history[-1]["train/loss"] < history[0]["train/loss"]
 
-    model, cfg, ckpt, device = load_model(run / "best.pt")      # checkpoint is self-contained
+    model, cfg, ckpt, device = load_model(run / "best.pt")
     assert ckpt["class_names"] == ["a", "b", "c", "d"] and cfg.model.num_classes == 4
     loader = torch.utils.data.DataLoader(data.val, batch_size=8)
     metrics, logits, _ = evaluate_model(model, ClassificationTask(4), loader, device, prefix="val")
@@ -128,10 +122,9 @@ def test_early_stopping_and_new_run_dir(tmp_path):
     from src.pipelines.classification import train
 
     data = FakeData(PatternDataset(seed=0), PatternDataset(4, seed=1), PatternDataset(4, seed=2), list("abcd"))
-    # lr=0 -> the model cannot get better -> early stopping ends the run well before 12 epochs
     s = train(tiny_cfg(tmp_path, "train.lr=0", "train.early_stopping_patience=2"), data=data)
     assert s["epochs_run"] < 12
-    s2 = train(tiny_cfg(tmp_path, "train.epochs=1"), data=data)  # same name -> new dir
+    s2 = train(tiny_cfg(tmp_path, "train.epochs=1"), data=data)
     assert s2["run"].startswith("tiny-")
 
 
@@ -172,18 +165,17 @@ def test_early_stopping_tie_break_on_loss():
     from src.training.trainer import EarlyStopping
     es = EarlyStopping(patience=2, mode="max")
     assert es.improved(0.8, 0.5)
-    assert es.improved(0.8, 0.4)          # same accuracy, lower loss -> better
-    assert not es.improved(0.8, 0.45)     # same accuracy, higher loss -> not better
+    assert es.improved(0.8, 0.4)
+    assert not es.improved(0.8, 0.45)
     assert not es.improved(0.7, 0.1)
     assert es.should_stop
 
 
-# ------------------------------------------------------------- transfer (step 6)
 @pytest.mark.parametrize("arch,channels", [("resnet18", [64, 128, 256, 512]),
                                            ("resnet50", [256, 512, 1024, 2048])])
 def test_resnet_encoder_stages(arch, channels):
     pytest.importorskip("torchvision")
-    enc = build_encoder(arch, pretrained=False)          # no download in tests
+    enc = build_encoder(arch, pretrained=False)
     feats = enc.forward_features(torch.randn(1, 3, 224, 224))
     assert [f.shape[1] for f in feats] == channels == enc.out_channels
     assert [224 // f.shape[-1] for f in feats] == [4, 8, 16, 32]
@@ -195,13 +187,13 @@ def test_linear_probe_freezes_backbone_and_batchnorm():
     cfg = load_config("configs/cls_resnet50_probe.yaml", ["model.pretrained=false"])
     model = build_classifier(cfg.model)
     params = count_parameters(model)
-    assert params["trainable"] == 2048 * 200 + 200            # only the head
+    assert params["trainable"] == 2048 * 200 + 200
     model.train()
-    assert model.head.training and not model.encoder.training  # BN stays in eval mode
+    assert model.head.training and not model.encoder.training
     bn = model.encoder.stem[1]
     before = bn.running_mean.clone()
     model(torch.randn(4, 3, 64, 64))
-    assert torch.equal(before, bn.running_mean)                # statistics did not drift
+    assert torch.equal(before, bn.running_mean)
     opt = build_optimizer(model, cfg.train)
     assert sum(p.numel() for g in opt.param_groups for p in g["params"]) == params["trainable"]
 

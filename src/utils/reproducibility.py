@@ -1,4 +1,3 @@
-"""Seeding and device selection so runs are reproducible across teammates."""
 from __future__ import annotations
 
 import os
@@ -36,7 +35,7 @@ def seed_worker(worker_id: int) -> None:
 
 
 def get_device(preferred: str | None = None):
-    """Return the best available device: CUDA (Colab/Kaggle) > MPS (Apple) > CPU."""
+    """Return the best available device."""
     import torch
     if preferred:
         return torch.device(preferred)

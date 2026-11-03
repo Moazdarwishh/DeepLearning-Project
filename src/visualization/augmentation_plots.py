@@ -1,4 +1,3 @@
-"""Figure showing what the training augmentation does to real CUB images."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,10 +10,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 def augmentation_grid(samples, train_tf, eval_tf, mean, std, out_path: Path,
                       n_aug: int = 6, seed: int = 0) -> Path:
-    """One row per image: original | eval view (resize + center crop) | n_aug random train views.
-
-    samples: list of (PIL image, title).
-    """
+    """One row per image."""
     import torch
 
     from src.data.transforms import denormalize

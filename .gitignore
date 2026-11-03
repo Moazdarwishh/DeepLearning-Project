@@ -2,14 +2,16 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+.venv
 .venv/
 venv/
+*.nosync
 .env
 
 # Jupyter
 .ipynb_checkpoints/
 
-# Data & caches (never commit datasets)
+# Data
 data/*
 !data/splits/
 data/splits/*
@@ -18,7 +20,7 @@ data/splits/*
 .cache/
 hf_cache/
 
-# Outputs, checkpoints, tracking
+# Outputs and tracking
 outputs/*
 !outputs/.gitkeep
 *.pt
@@ -33,7 +35,3 @@ wandb/
 .DS_Store
 .vscode/
 .idea/
-
-# virtual env kept out of iCloud sync (".venv" is a symlink to ".venv.nosync")
-.venv
-*.nosync

@@ -1,10 +1,3 @@
-"""Name -> encoder factory, so configs select models by name (Open/Closed principle).
-
-Add a new encoder without touching the trainer::
-
-    @register_encoder("my_cnn")
-    class MyCNN(Encoder): ...
-"""
 from __future__ import annotations
 
 from typing import Callable
