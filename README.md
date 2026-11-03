@@ -48,7 +48,7 @@ notebooks/        EDA & experiments only — final code lives in src/
 src/
   data/           dataset wrappers, stratified splits, caption cleaning, transforms
   models/         Encoder interface (multi-scale features), registry, encoders, heads
-  training/       generic Trainer (task strategies), optimizer/scheduler, tuning
+  training/       generic Trainer (task strategies), optimizer/scheduler, grid/random/optuna search
   pipelines/      train / evaluate / predict per task (registered as CLI commands)
   evaluation/     metrics, benchmarking
   visualization/  EDA plots, learning curves, Grad-CAM
@@ -102,7 +102,7 @@ Set `tracking.backend` in a config to `mlflow`, `wandb` or `none`.
 - [x] M1 — EDA & data preparation (split, EDA figures, caption cleaning, augmentation)
 - [x] M1 — Scratch CNN, generic Trainer, train/evaluate/predict CLI (training runs pending)
 - [x] M1 — Transfer learning code: ResNet-18/34/50, linear probe vs fine-tuning (training runs pending)
-- [ ] M1 — Grid vs random search
+- [x] M1 — Grid vs random search code (`tune` command, resumable, comparison table/figure; runs pending)
 - [ ] M1 — Evaluation & Grad-CAM
 - [ ] M2 — Colorization
 - [ ] M2 — Captioning

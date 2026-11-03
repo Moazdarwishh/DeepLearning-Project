@@ -13,6 +13,8 @@ Examples::
     python -m src.cli evaluate --task classification --checkpoint outputs/cls_resnet50/best.pt
     python -m src.cli predict  --task classification --checkpoint outputs/cls_resnet50/best.pt --image bird.jpg
     python -m src.cli tune     --task classification --config configs/tune_grid.yaml
+    python -m src.cli tune     --task classification --config configs/tune_random.yaml
+    python -m src.cli tune     --task classification --compare outputs/tuning/tune-grid outputs/tuning/tune-random
     python -m src.cli gradcam  --task classification --checkpoint outputs/cls_resnet50/best.pt --image bird.jpg
 
 Commands are dispatched through ``HANDLERS`` so each task registers its own
@@ -210,8 +212,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", help="Where to save the prediction/visualization")
     p.set_defaults(func=dispatch)
 
-    p = sub.add_parser("tune", help="Hyperparameter search (grid | random | optuna)")
+    p = sub.add_parser("tune", help="Hyperparameter search (grid | random | optuna) or compare searches")
     _add_common(p)
+    p.add_argument("--compare", nargs="+", metavar="SEARCH_DIR",
+                   help="Compare finished searches, e.g. outputs/tuning/tune-grid outputs/tuning/tune-random")
     p.set_defaults(func=dispatch)
 
     p = sub.add_parser("gradcam", help="Grad-CAM visualizations")

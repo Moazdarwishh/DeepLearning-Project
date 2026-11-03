@@ -189,3 +189,16 @@ def _cli_evaluate(args) -> int:
 def _cli_predict(args) -> int:
     predict(args.checkpoint, args.image, args.topk, args.output)
     return 0
+
+
+@register("tune", "classification")
+def _cli_tune(args) -> int:
+    from src.training.tuning import SearchRunner, compare_searches
+
+    if args.compare:
+        compare_searches(args.compare)
+        return 0
+    if not args.config:
+        raise SystemExit("tune needs --config (e.g. configs/tune_grid.yaml) or --compare DIR DIR")
+    SearchRunner(load_config(args.config, args.set), base_config_path=args.config).run()
+    return 0

@@ -1,20 +1,32 @@
-# Grid search (Milestone 1 tuning). Same budget as tune_random.yaml: 12 trials.
+# GRID SEARCH (Milestone 1, hyperparameter tuning)
+# Same model, data, epochs and budget as tune_random.yaml -> a fair comparison.
+# Budget: 2 x 2 x 2 = 8 trials x 5 epochs, on the ResNet-50 linear probe (fast: only the head trains).
+# Grid search can only try 2 values per hyperparameter with this budget.
 _base_: base.yaml
 experiment:
   name: tune-grid
   task: classification
   tags: [tuning, grid]
+data:
+  normalization: imagenet
+  batch_size: 64
 model:
   name: resnet50
   pretrained: true
+  freeze_backbone: true
 train:
-  epochs: 8
+  optimizer: adamw
+  scheduler: cosine
+  warmup_epochs: 1
+  label_smoothing: 0.1
+  early_stopping_patience: 0     # every trial runs its full 5 epochs
+  save_every_epoch: false
 tuning:
   method: grid
-  epochs_per_trial: 8
+  epochs_per_trial: 5
   search_space:
-    train.lr: [1.0e-4, 3.0e-4, 1.0e-3]
-    train.weight_decay: [1.0e-4, 1.0e-3]
+    train.lr: [1.0e-3, 1.0e-2]
+    train.weight_decay: [1.0e-4, 1.0e-2]
     model.dropout: [0.2, 0.5]
 tracking:
   backend: mlflow

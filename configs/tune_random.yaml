@@ -1,22 +1,35 @@
-# Random search (Milestone 1 tuning). Same budget as tune_grid.yaml: 12 trials.
+# RANDOM SEARCH (Milestone 1, hyperparameter tuning)
+# Same model, data, epochs and budget (8 trials x 5 epochs) as tune_grid.yaml, and the same
+# ranges - but every trial draws NEW values, so each hyperparameter is tried at 8 different
+# values instead of 2 (Bergstra & Bengio, 2012).
 _base_: base.yaml
 experiment:
   name: tune-random
   task: classification
   tags: [tuning, random]
+data:
+  normalization: imagenet
+  batch_size: 64
 model:
   name: resnet50
   pretrained: true
+  freeze_backbone: true
 train:
-  epochs: 8
+  optimizer: adamw
+  scheduler: cosine
+  warmup_epochs: 1
+  label_smoothing: 0.1
+  early_stopping_patience: 0
+  save_every_epoch: false
 tuning:
   method: random
-  n_trials: 12
-  epochs_per_trial: 8
+  n_trials: 8
+  epochs_per_trial: 5
+  seed: 0
   search_space:
-    train.lr: {dist: loguniform, low: 1.0e-5, high: 1.0e-2}
-    train.weight_decay: {dist: loguniform, low: 1.0e-5, high: 1.0e-2}
-    model.dropout: {dist: uniform, low: 0.1, high: 0.6}
+    train.lr: {dist: loguniform, low: 1.0e-3, high: 1.0e-2}
+    train.weight_decay: {dist: loguniform, low: 1.0e-4, high: 1.0e-2}
+    model.dropout: {dist: uniform, low: 0.2, high: 0.5}
 tracking:
   backend: mlflow
   project: pixels-to-language-tuning

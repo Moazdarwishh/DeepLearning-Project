@@ -97,8 +97,13 @@ class TrackingConfig:
 @dataclass
 class TuningConfig:
     method: str = "grid"                    # grid | random | optuna
-    n_trials: int = 12                      # used by random / optuna
-    epochs_per_trial: int = 8
+    n_trials: int = 8                       # used by random / optuna (grid = size of the grid)
+    epochs_per_trial: int = 5               # short runs: tuning compares settings, not final models
+    seed: int = 0                           # sampling seed for random / optuna
+    metric: str = "val/accuracy"            # what "best trial" means (always maximised)
+    keep_checkpoints: bool = False          # delete trial checkpoints to save disk space
+    # "section.key": [values]                         -> grid values / random choice
+    # "section.key": {dist: loguniform|uniform|int, low, high}  -> random / optuna only
     search_space: dict[str, Any] = field(default_factory=dict)
 
 
