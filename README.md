@@ -108,8 +108,10 @@ Hyperparameter search on the linear probe (8 trials × 5 epochs each, same budge
 
 ## Team
 
-| Name | GitHub |
-|---|---|
-| | |
+| Name | ID | GitHub | Contributions |
+|---|---|---|---|
+| Moaz Mohamed Zakaria | 22P0307 | [Moazdarwishh](https://github.com/Moazdarwishh) | Setup and requirement 1.1 (data split, EDA, caption cleaning, augmentation, data loading), grid search, Grad-CAM |
+| Ahmed Abbady | 22P0308 | [AhmmedAbbady](https://github.com/AhmmedAbbady) | Requirement 1.2, Grad-CAM, report |
+| Anas Mansour | 22U0005 | [anasmansourr](https://github.com/anasmansourr) | Requirement 1.2, Grad-CAM, report |
 
-Trained models: _link to Google Drive_
+Trained models and outputs: [Google Drive](https://drive.google.com/drive/folders/1Gx7MUBF5f2cXeDkD_xpO2NJaKUlT5Hx-?usp=sharing)
