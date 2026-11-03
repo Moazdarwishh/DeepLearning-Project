@@ -1,4 +1,4 @@
-# CSE485 / CSE488 Deep Learning: From Pixels to Language
+# CSE485 / CSE488 Deep Learning Project
 
 ## Milestone 1 submission: bird species classification on CUB-200-2011
 
@@ -14,7 +14,7 @@
 
 - **Codebase (GitHub):** https://github.com/Moazdarwishh/DeepLearning-Project
 - **Trained models and outputs (Google Drive):** https://drive.google.com/drive/folders/1Gx7MUBF5f2cXeDkD_xpO2NJaKUlT5Hx-?usp=sharing
-- **Report:** `docs/Milestone1_Report.pdf` in the repository and in the code zip
+- **Report:** `docs/Milestone1_Report.pdf` in the repository in docs folder and in the code zip
 
 ## What is on Google Drive
 
