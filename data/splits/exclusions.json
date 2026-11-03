@@ -1,0 +1,27 @@
+{
+  "description": "Images removed after the EDA (python -m src.cli data --action eda). Indices are row indices of the Hugging Face dataset the split refers to (CUB_train for train/val, CUB_test for test).",
+  "exclude": [
+    {
+      "split": "val",
+      "index": 774,
+      "label": "Bronzed Cowbird",
+      "reason": "Exact duplicate (pHash distance 0) of test image 661. Keeping it would leak test data into model selection."
+    },
+    {
+      "split": "val",
+      "index": 5277,
+      "label": "Prothonotary Warbler",
+      "reason": "Near-exact duplicate (pHash distance 2) of test image 5115. Keeping it would leak test data into model selection."
+    }
+  ],
+  "kept_on_purpose": [
+    {
+      "what": "Test images 565 (Chuck will Widow) and 2974 (Whip poor Will) are the same photo with different labels.",
+      "reason": "The official test set is left unchanged so results stay comparable with published benchmarks; the conflict is reported instead."
+    },
+    {
+      "what": "Duplicates inside train (2 pairs) and inside test (4 pairs).",
+      "reason": "They do not leak information between splits; removing them would change the official test set."
+    }
+  ]
+}
